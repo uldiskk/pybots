@@ -64,13 +64,11 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 
 startingPage = 1
 pagesToScan = 15 #10 on one page; 100 is max
-greetings = ["Hi", "Dear", "Hey"]
-# greetings = ["Halo", "Cześć", "Dzień dobry", "Siema", "Hej"] #polish
 credsFile = "../creds.txt"
 verboseOn = 0
-adPrinted = 0
 
 #********** LOG IN *************
+adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
@@ -174,21 +172,21 @@ while pageNr < pagesToScan+startingPage:
                 if(verboseOn): print(all_span[j].text + " ignored")
 
         isOutOfSearches = False
-        if len(all_names) != 10:
-            if len(all_names) == 3 or len(all_names) == 4:
+        namesOnPage = len(all_names)
+        if namesOnPage != 10:
+            if namesOnPage == 3 or namesOnPage == 4:
                 print(str(len(all_names)) + " instead of 10 names. Run out of monthly limit of profile searches? Will try to ignore it with big waittimes..." )
                 time.sleep(60*5)
                 isOutOfSearches = True
-            elif len(all_names) == 0:
+            elif namesOnPage == 0:
                 print("!!!!!!!!!!!!!!! oopsy doozi, no names found, which may mean you got blocked. Exiting...")
                 pageNr = 1000
                 exit()
             else:
-                print(str(len(all_names)) + " instead of 10 names. Skip the page.")
-                for n in all_names:
-                    print(n)
-                pageNr += 1
-                continue
+                if (verboseOn):
+                    print(str(namesOnPage) + " instead of 10 names.")
+                    for n in all_names:
+                        print(n)
 
 
         #get all Connect buttons
@@ -210,9 +208,9 @@ while pageNr < pagesToScan+startingPage:
         if(verboseOn): print("contact_buttons loaded and len = " + str(len(contact_buttons)))
         if len(contact_buttons) != 10:
             if(isOutOfSearches):
-                print("Found " + str(len(contact_buttons)) + " buttons.")
-            else:
-                print(str(len(contact_buttons)) + " instead of 10 buttons. Skip the page.")
+                if(verboseOn): print("Found " + str(len(contact_buttons)) + " buttons.")
+            elif(namesOnPage!=len(contact_buttons)):
+                print(str(len(contact_buttons)) + " instead of " + str(namesOnPage) + " buttons. Skip the page.")
                 pageNr += 1
                 continue
 
