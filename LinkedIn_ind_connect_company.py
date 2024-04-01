@@ -36,7 +36,8 @@ exclude_keywords = ''
 
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #    'devops', 'agile', 'scrum', 'aws', 'azure', 'gcp'
-                   'devops', 'kubernetes', 'artificial intelligence', 'copilot', 'mlops'
+                #    'devops', 'kubernetes', 'artificial intelligence', 'copilot', 'mlops'
+                   'ceo', 'cto'
 ]
 # target_keywords = [ 
     # 'engineer', 'programmer', 'developer', 'designer', 'specialist', 'technical', 'data scientist', 'analyst',
@@ -61,9 +62,9 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
 
 
-
+maxConnects = 50
 startingPage = 1
-pagesToScan = 15 #10 on one page; 100 is max
+pagesToScan = 35 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
 
@@ -143,24 +144,24 @@ while pageNr < pagesToScan+startingPage:
 
         ### OUTPUT FOR TESTING
         if (verboseOn):
-            counter = 0
+            vcounter = 0
             for n in all_span:
-                print(":" + str(counter))
+                print(":" + str(vcounter))
                 print(n.text + "|len:" + str(len(n.text)) )
-                counter+=1
+                vcounter+=1
             print("--------------")
-            counter = 0
+            vcounter = 0
             for n in all_jobs:
-                print(":" + str(counter))
+                print(":" + str(vcounter))
                 print(n.text)
-                counter+=1
+                vcounter+=1
             print("--------------")
 
 
         #make array of contact names out of messy array
         all_full_names = []
         all_names = []
-        print(str(len(all_span)) + " elems in the messy array of tag 'span'")
+        if (verboseOn): print(str(len(all_span)) + " elems in the messy array of tag 'span'")
         maxRange = 56
         if len(all_span) < maxRange:
             maxRange = len(all_span)
@@ -194,11 +195,11 @@ while pageNr < pagesToScan+startingPage:
 
         ### OUTPUT FOR TESTING
         if(verboseOn):
-            counter = 0
+            vcounter = 0
             for n in all_buttons:
-                print(":" + str(counter))
+                print(":" + str(vcounter))
                 print(n.text)
-                counter+=1
+                vcounter+=1
             print("--------------")
 
         contact_buttons = []
@@ -216,47 +217,59 @@ while pageNr < pagesToScan+startingPage:
 
         counter = 0
         for btn in contact_buttons:
-            boolToExclude = True
-            theJob = all_jobs[counter].text.lower()
-            if btn.text == "Connect":
-                if(verboseOn): print("checking job - " + theJob)
-                if len(target_keywords) > 0:
-                    for targetRole in target_keywords:
-                        if(verboseOn): print("comparing to - " + targetRole)
-                        if targetRole.strip().lower() in re.sub(r"[\n\t\s]*", "", theJob):
-                            print(targetRole + " is found in " + theJob)
-                            boolToExclude = False
+            if (totalConnectRequests < maxConnects):
+                boolToExclude = True
+                theJob = all_jobs[counter].text.lower()
+                if btn.text == "Connect":
+                    if(verboseOn): print("checking job - " + theJob)
+                    if len(target_keywords) > 0:
+                        for targetRole in target_keywords:
+                            if(verboseOn): print("comparing to - " + targetRole)
+                            if targetRole.strip().lower() in re.sub(r"[\n\t\s]*", "", theJob):
+                                print(targetRole + " is found in " + theJob)
+                                boolToExclude = False
+                    else:
+                        boolToExclude = False
+                    if len(exclude_keywords) > 0:
+                        for excludeRole in exclude_keywords:
+                            if excludeRole.strip().lower() in re.sub(r"[\n\t\s]*", "", theJob):
+                                print(excludeRole + " is BADLY found in " + theJob)
+                                boolToExclude = True
                 else:
-                    boolToExclude = False
-                if len(exclude_keywords) > 0:
-                    for excludeRole in exclude_keywords:
-                        if excludeRole.strip().lower() in re.sub(r"[\n\t\s]*", "", theJob):
-                            print(excludeRole + " is BADLY found in " + theJob)
-                            boolToExclude = True
-            else:
-                if(verboseOn): print("Ignoring "+ str(counter) + " contact because button=" + btn.text)
-                time.sleep(0.1)
-            
-            if boolToExclude == False:
-                print("Connecting with " + all_names[counter])
+                    if(verboseOn): print("Ignoring "+ str(counter) + " contact because button=" + btn.text)
+                    time.sleep(0.1)
                 
-                # click on [Connect]
-                driver.execute_script("arguments[0].click();", btn)
-                time.sleep(2)
+                if boolToExclude == False:
+                    print("Connecting with " + all_names[counter])
+                    
+                    # click on [Connect]
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(2)
 
-                note_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Send now']")
-                driver.execute_script("arguments[0].click();", note_button)
-                time.sleep(1)
+                    note_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Send now']")
+                    driver.execute_script("arguments[0].click();", note_button)
+                    time.sleep(1)
 
-            
-                #Dismiss for people who ask to provide email
-                try:
-                    dismiss_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Dismiss']")
-                    driver.execute_script("arguments[0].click();", dismiss_button)
-                except Exception:
-                    good = 0
-                totalConnectRequests += 1
-                time.sleep(randint(15, 30))
+                    try:
+                        got_it_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Got it']")
+                        print("Found [Got it] button which means you're out of weekly Connects. Exiting for your own sake.")
+                        pageNr = 1000
+                        counter = 1000
+                        exit()
+                    except Exception:
+                        if(verboseOn): print("[Got it] button now found. Continuing safely.")
+
+
+                    #Dismiss for people who ask to provide email
+                    try:
+                        dismiss_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Dismiss']")
+                        driver.execute_script("arguments[0].click();", dismiss_button)
+                    except Exception:
+                        good = 0
+                    totalConnectRequests += 1
+                    time.sleep(randint(15, 30))
+            else:
+                print ("maxConnects of " + maxConnects + " is reached. Skipping.")
             counter+=1
     except:
         print("Something crashed. Looking for dialog boxes to close")
