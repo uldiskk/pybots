@@ -53,7 +53,7 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
 
 
 
-geoLocation = '%5B%22104341318%22%5D'
+geoLocation = '%5B"102974008"%5D'
 #%5B%22104341318%22%5D for Latvia;       %5B%22106491660%22%5D for Riga;      %5B%22101869288%22%5D Riga, Riga, Latvia
 #%5B"105117694"%5D Sweden; %5B"104514075"%5D Denmark; %5B"100456013"%5D Finland
 #%5B"102974008"%5D Estonia; %5B"105072130"%5D Poland; %5B"104688944"%5D Croatia; %5B"106178099"%5D Moldova
@@ -62,9 +62,9 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
 
 
-maxConnects = 50
+maxConnects = 250
 startingPage = 1
-pagesToScan = 35 #10 on one page; 100 is max
+pagesToScan = 75 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
 
@@ -102,6 +102,7 @@ time.sleep(15)
 #***************** LOGIC ***********************
 orText = '%20OR%20'
 totalConnectRequests = 0
+gotIt = 0
 
 geoFilter = ''
 if geoLocation == '':
@@ -251,13 +252,18 @@ while pageNr < pagesToScan+startingPage:
                     time.sleep(1)
 
                     try:
-                        got_it_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Got it']")
-                        print("Found [Got it] button which means you're out of weekly Connects. Exiting for your own sake.")
-                        pageNr = 1000
-                        counter = 1000
-                        exit()
+                        got_it_button = driver.find_element(by=By.XPATH, value="//button[@aria-label='Got it']")                        
+                        if(gotIt>2):
+                            print("Found [Got it] for the 3rd time which means you're very close to the limit of weekly Connects. Exiting for your own sake.")
+                            pageNr = 1000
+                            counter = 1000
+                            exit()
+                        else:
+                            print("Found [Got it] button which means you're close to the limit of weekly Connects. Will continuing for a few times while it's safe.")
+                            driver.execute_script("arguments[0].click();", got_it_button)
+                            gotIt += 1
                     except Exception:
-                        if(verboseOn): print("[Got it] button now found. Continuing safely.")
+                        if(verboseOn): print("[Got it] button not found. Continuing safely.")
 
 
                     #Dismiss for people who ask to provide email
