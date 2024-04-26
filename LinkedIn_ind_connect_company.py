@@ -52,10 +52,11 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
 
 
 
-geoLocation = '%5B%22101869288%22%5D'
+geoLocation = '%5B"103644278"%5D'
 #%5B%22104341318%22%5D for Latvia;       %5B%22106491660%22%5D for Riga;      %5B%22101869288%22%5D Riga, Riga, Latvia
 #%5B"105117694"%5D Sweden; %5B"104514075"%5D Denmark; %5B"100456013"%5D Finland
 #%5B"102974008"%5D Estonia; %5B"105072130"%5D Poland; %5B"104688944"%5D Croatia; %5B"106178099"%5D Moldova
+#%5B"103644278"%5D United States
 
 company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 28Stone %5B"2340444"%5D ; %5B"2553342"%5D 4finance ; %5B"19099020"%5D TET ; %5B"2715"%5D Swisscom global ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
@@ -75,27 +76,7 @@ pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
 options = Options()
 options.add_experimental_option('detach', True)
 driver = webdriver.Chrome('chromedriver.exe', options=options)
-
-screen_found = 0
-while screen_found < 1:
-    try:
-        driver.get('https://www.linkedin.com')
-        time.sleep(3)
-        username = driver.find_element(by=By.XPATH, value="//input[@name='session_key']")
-        password = driver.find_element(by=By.XPATH, value="//input[@name='session_password']")
-        username.send_keys(usr)
-        password.send_keys(pwd)
-        screen_found = 1
-    except Exception:
-        print("Wrong login screen. Restarting...")
-        time.sleep(3)
-time.sleep(1)
-submit = driver.find_element(by=By.XPATH, value="//button[@type='submit']").click()
-time.sleep(3)
-
-#after several tests LinkedIn started asking for Security check. Giving time to pass it manually
-time.sleep(15)
-
+utils.loginToLinkedin(driver, usr, pwd)
 
 
 #***************** LOGIC ***********************

@@ -1,6 +1,6 @@
 import os.path
-
-
+import time
+from selenium.webdriver.common.by import By
 
 #-----FUNCTIONS-------------
 
@@ -58,3 +58,24 @@ def printAd(adPrinted):
         print("#########################################################################")
     return 1
     
+def loginToLinkedin(driver, usr, pwd):
+    screen_found = 0
+    while screen_found < 1:
+        try:
+            driver.get('https://www.linkedin.com')
+            time.sleep(3)
+            username = driver.find_element(by=By.XPATH, value="//input[@name='session_key']")
+            password = driver.find_element(by=By.XPATH, value="//input[@name='session_password']")
+            username.send_keys(usr)
+            password.send_keys(pwd)
+            screen_found = 1
+        except Exception:
+            print("Wrong login screen. Restarting...")
+            time.sleep(3)
+    time.sleep(1)
+    submit = driver.find_element(by=By.XPATH, value="//button[@type='submit']").click()
+    time.sleep(3)
+
+    #after several tests LinkedIn started asking for Security check. Giving time to pass it manually
+    time.sleep(15)
+    return driver
