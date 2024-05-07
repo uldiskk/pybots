@@ -48,7 +48,7 @@ invitesInOneRound = 50
 roundsToRepeat = 35
 filterByFirstLocation = 1 #boolean
 verboseOn = 0
-listOfExcludedNames = "../exclude.txt"
+fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
 
 
@@ -65,17 +65,9 @@ utils.loginToLinkedin(driver, usr, pwd)
 
 #***************** LOGIC ***********************
 totalConnectRequests = 0
+excludeList = utils.getExcludeList(fileOfExcludedNames, adPrinted, verboseOn)
 
 # ---> some contacts can not be invited and break the whole flow. We must catch those manually. That's why invitations are done in small invitesInOneRound batches
-###read file with names to exclude
-excludeList = []
-if os.path.isfile(listOfExcludedNames):
-    with open(listOfExcludedNames, encoding="utf8") as file_in:    
-        for line in file_in:
-            excludeList.append(line)
-else:
-    print("The file " + listOfExcludedNames + " doesn't exist. Nothing will be excluded.")
-
 round = 0
 while round < roundsToRepeat:
     ###open page to invite contacts
@@ -84,42 +76,11 @@ while round < roundsToRepeat:
     time.sleep(5)
 
     ###click "Locations" and select top location for filter
-    if filterByFirstLocation:
-        print("Locating [Locations]")
-        but_loc = driver.find_element(by=By.XPATH, value='''//button[@class='artdeco-pill artdeco-pill--slate artdeco-pill--choice artdeco-pill--2 search-reusables__filter-pill-button
-       reusable-search-filter-trigger-and-dropdown__trigger']''')
-        print("Clicking [Locations]")
-        driver.execute_script("arguments[0].click();", but_loc)
-        time.sleep(1)
-        print("Locating checkbox")
-        check_loc = driver.find_element(by=By.XPATH, value="//input[@class='search-reusables__select-input']")
-        print("Clicking checkbox")
-        driver.execute_script("arguments[0].click();", check_loc)
-        time.sleep(1)
-        ###click [Show Results]
-        show_button = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
-        print("Clicking button ["+show_button.text+"]")
-        driver.execute_script("arguments[0].click();", show_button)
-        time.sleep(2)
+    if filterByFirstLocation: utils.clickFilterByFirstLocation(driver, verboseOn)
+
     print("------Inviting--------")
     ###click "Show more results" button many times to load more contacts
-    sys.stdout.write("Loading connections on screen")
-    sys.stdout.flush()
-    pageNr = 1
-    
-    while pageNr < pagesToScan:
-        try:
-            all_buttons = driver.find_elements(By.TAG_NAME, value="button")
-            connect_buttons = [btn for btn in all_buttons if btn.text == "Show more results"]
-            for btn in connect_buttons:
-                sys.stdout.write(".")
-                sys.stdout.flush()
-                driver.execute_script("arguments[0].click();", btn)                
-        except:
-            print("-")
-        time.sleep(2)
-        pageNr += 1
-    print("!")
+    utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
 
     ###click checkboxes based on search_keyword and exclude ones from the file listOfExcludedNames
     all_checkboxes = driver.find_elements(by=By.XPATH, value="//input[@type='checkbox']")

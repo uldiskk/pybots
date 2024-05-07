@@ -1,19 +1,20 @@
 import os.path
 import time
+import sys
 from selenium.webdriver.common.by import By
 
 #-----FUNCTIONS-------------
 
 ###read file with names to exclude
-def getExcludeList(listOfExcludedNames, adPrinted, verboseOn):
+def getExcludeList(fileOfExcludedNames, adPrinted, verboseOn):
     adPrinted = printAd(adPrinted)
     excludeList = []
-    if os.path.isfile(listOfExcludedNames):
-        with open(listOfExcludedNames, encoding="utf8") as file_in:    
+    if os.path.isfile(fileOfExcludedNames):
+        with open(fileOfExcludedNames, encoding="utf8") as file_in:    
             for line in file_in:
                 excludeList.append(line)
     else:
-        print("The file " + listOfExcludedNames + " doesn't exist. Nothing will be excluded.")
+        print("The file " + fileOfExcludedNames + " doesn't exist. Nothing will be excluded.")
     return (excludeList)
 
 def getUser(fileName, adPrinted, verboseOn):
@@ -79,3 +80,49 @@ def loginToLinkedin(driver, usr, pwd):
     #after several tests LinkedIn started asking for Security check. Giving time to pass it manually
     time.sleep(15)
     return driver
+
+def clickFilterByFirstLocation(driver, verboseOn):
+    print("Filtering contacts by the first location...")
+    if(verboseOn): print("Locating [Locations]")
+    but_loc = driver.find_element(by=By.XPATH, value='''//button[@class='artdeco-pill artdeco-pill--slate artdeco-pill--choice artdeco-pill--2 search-reusables__filter-pill-button
+       reusable-search-filter-trigger-and-dropdown__trigger']''')
+    if(verboseOn): print("Clicking [Locations]")
+    driver.execute_script("arguments[0].click();", but_loc)
+    time.sleep(1)
+    if(verboseOn): print("Locating checkbox")
+    check_loc = driver.find_element(by=By.XPATH, value="//input[@class='search-reusables__select-input']")
+    if(verboseOn): print("Clicking checkbox")
+    driver.execute_script("arguments[0].click();", check_loc)
+    time.sleep(1)
+    ###click [Show Results]
+    show_button = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
+    if(verboseOn): print("Clicking button ["+show_button.text+"]")
+    driver.execute_script("arguments[0].click();", show_button)
+    time.sleep(2)
+    return
+
+def loadContactsToInvite(driver, pagesToScan, verboseOn):
+    sys.stdout.write("Loading connections on screen")
+    sys.stdout.flush()
+    pageNr = 1
+    
+    while pageNr < pagesToScan:
+        try:
+            all_buttons = driver.find_elements(By.TAG_NAME, value="button")
+            connect_buttons = [btn for btn in all_buttons if btn.text == "Show more results"]
+            for btn in connect_buttons:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+                driver.execute_script("arguments[0].click();", btn)
+                time.sleep(2)
+            pageNr += 1
+        except:
+            sys.stdout.write("-")
+            sys.stdout.flush()
+            time.sleep(3)
+    print("!")
+    return
+
+def dummySum(a, b):
+    sum = a + b
+    return sum
