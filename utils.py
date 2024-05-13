@@ -124,7 +124,7 @@ def loadContactsToInvite(driver, pagesToScan, verboseOn):
     print("!")
     return
 
-def selectContactToInvite(driver, btn, search_keywords, verboseOn):
+def selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn):
     inviteSelected = 0
     div_parent = btn.find_element(by=By.XPATH, value="..")
     for search_keyword in search_keywords:
@@ -137,7 +137,6 @@ def selectContactToInvite(driver, btn, search_keywords, verboseOn):
                 driver.execute_script("arguments[0].click();", btn)
                 print("+++INVITING:" + div_parent.text + " because matches " + search_keyword)
                 inviteSelected = 1
-                totalConnectRequests += 1
                 time.sleep(0.5)
             else:
                 print("!!!Excluding:" + div_parent.text)

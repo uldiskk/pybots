@@ -9,7 +9,7 @@ import sys
 import utils
 
 if len(sys.argv) < 2:
-    print("Please specific the configuration file as a cmd parameter")
+    print("Please specify the configuration file as a cmd parameter")
     exit(1)
 else:
     configFile = sys.argv[1]
@@ -61,7 +61,9 @@ while round < roundsToRepeat:
     print("Selecting:")
     invitesSelected = 0
     for btn in checkboxes:
-        invitesSelected += utils.selectContactToInvite(driver, btn, search_keywords, verboseOn)
+        oneInviteSelected = utils.selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn)
+        invitesSelected += oneInviteSelected
+        totalConnectRequests += oneInviteSelected
         if invitesSelected == invitesInOneRound: break
     ###click Invite button for selected contacts
     if invitesSelected == 0:
