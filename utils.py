@@ -1,6 +1,7 @@
 import os.path
 import time
 import sys
+import json
 from selenium.webdriver.common.by import By
 
 #-----FUNCTIONS-------------
@@ -123,6 +124,51 @@ def loadContactsToInvite(driver, pagesToScan, verboseOn):
     print("!")
     return
 
+def selectContactToInvite(driver, btn, search_keywords, verboseOn):
+    inviteSelected = 0
+    div_parent = btn.find_element(by=By.XPATH, value="..")
+    for search_keyword in search_keywords:
+        if search_keyword.lower() in div_parent.text.lower():
+            boolToExclude = False
+            for excludedContact in excludeList:
+                if excludedContact.strip().lower() in div_parent.text.lower():
+                    boolToExclude = True
+            if boolToExclude == False:
+                driver.execute_script("arguments[0].click();", btn)
+                print("+++INVITING:" + div_parent.text + " because matches " + search_keyword)
+                inviteSelected = 1
+                totalConnectRequests += 1
+                time.sleep(0.5)
+            else:
+                print("!!!Excluding:" + div_parent.text)
+            break
+    return inviteSelected
+
 def dummySum(a, b):
     sum = a + b
     return sum
+
+def getUrl(dictionaryFileName):
+    with open(dictionaryFileName) as f: 
+        data = f.read() 
+      
+    # reconstructing the data as a dictionary 
+    mydict = json.loads(data)
+    return mydict.get('list_url')
+
+def getBoolFirstLocation(dictionaryFileName):
+    with open(dictionaryFileName) as f: 
+        data = f.read() 
+      
+    # reconstructing the data as a dictionary 
+    mydict = json.loads(data)
+    return mydict.get('filterFirstLocation')
+
+
+def getKeywords(dictionaryFileName):
+    with open(dictionaryFileName) as f: 
+        data = f.read() 
+      
+    # reconstructing the data as a dictionary 
+    mydict = json.loads(data)    
+    return mydict.get('search_keywords').split(",")
