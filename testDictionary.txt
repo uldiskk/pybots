@@ -1,3 +1,0 @@
-{"list_url": "https://dummy.com/lala?123/",
-"search_keywords": "devops,dev ops",
-"filterFirstLocation": 1}

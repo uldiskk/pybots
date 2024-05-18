@@ -1,3 +1,4 @@
+import re
 import os.path
 import time
 import sys
@@ -13,10 +14,26 @@ def getExcludeList(fileOfExcludedNames, adPrinted, verboseOn):
     if os.path.isfile(fileOfExcludedNames):
         with open(fileOfExcludedNames, encoding="utf8") as file_in:    
             for line in file_in:
-                excludeList.append(line)
+                excName = re.sub(r"[\n\t\s]*", "", line)
+                if len(excName) > 1:
+                    excludeList.append(excName)
     else:
         print("The file " + fileOfExcludedNames + " doesn't exist. Nothing will be excluded.")
     return (excludeList)
+
+def appendListFromFileToList(sourceList, fileName):
+    if len(fileName) < 1:
+        print("No file for storing used names has been specified in the config. Nothing will be saved.")
+        return sourceList
+    if os.path.isfile(fileName):
+        with open(fileName, encoding="utf8") as file_in:    
+            for line in file_in:
+                excName = re.sub(r"[\n\t\s]*", "", line)
+                if len(excName) > 1:
+                    sourceList.append(excName)
+    else:
+        print("The file " + fileName + " doesn't exist. No items will be added to the list.")
+    return sourceList
 
 def getUser(fileName, adPrinted, verboseOn):
     adPrinted = printAd(adPrinted)
@@ -63,8 +80,15 @@ def printAd(adPrinted):
 def loginToLinkedin(driver, usr, pwd):
     screen_found = 0
     while screen_found < 1:
+        driver.get('https://www.linkedin.com')
+        time.sleep(3)
         try:
-            driver.get('https://www.linkedin.com')
+            #bypass the login method screen that randomly appears
+            byEmailBtn = driver.find_element(by=By.XPATH, value="//a[starts-with(@class, 'sign-in-form__sign-in-cta')]")
+            driver.execute_script("arguments[0].click()", byEmailBtn)
+        except:
+            print('')
+        try:            
             time.sleep(3)
             username = driver.find_element(by=By.XPATH, value="//input[@name='session_key']")
             password = driver.find_element(by=By.XPATH, value="//input[@name='session_password']")
@@ -125,49 +149,62 @@ def loadContactsToInvite(driver, pagesToScan, verboseOn):
     return
 
 def selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn):
-    inviteSelected = 0
+    nameSelected = ""
     div_parent = btn.find_element(by=By.XPATH, value="..")
     for search_keyword in search_keywords:
         if search_keyword.lower() in div_parent.text.lower():
             boolToExclude = False
             for excludedContact in excludeList:
-                if excludedContact.strip().lower() in div_parent.text.lower():
+                withoutSpaceAndTrail = re.sub(r"[\n\t\s]*", "", div_parent.text.lower())
+                if excludedContact.strip().lower() in withoutSpaceAndTrail:
                     boolToExclude = True
             if boolToExclude == False:
                 driver.execute_script("arguments[0].click();", btn)
                 print("+++INVITING:" + div_parent.text + " because matches " + search_keyword)
-                inviteSelected = 1
+                nameSelected = div_parent.text.lower()
                 time.sleep(0.5)
             else:
                 print("!!!Excluding:" + div_parent.text)
             break
-    return inviteSelected
+    return nameSelected
 
 def dummySum(a, b):
     sum = a + b
     return sum
 
 def getUrl(dictionaryFileName):
-    with open(dictionaryFileName) as f: 
-        data = f.read() 
-      
-    # reconstructing the data as a dictionary 
-    mydict = json.loads(data)
-    return mydict.get('list_url')
+    return getStringOrIntFromConfig(dictionaryFileName, 'list_url')
 
 def getBoolFirstLocation(dictionaryFileName):
-    with open(dictionaryFileName) as f: 
-        data = f.read() 
-      
-    # reconstructing the data as a dictionary 
-    mydict = json.loads(data)
-    return mydict.get('filterFirstLocation')
+    return getStringOrIntFromConfig(dictionaryFileName, 'filterFirstLocation')
 
+def getTestMode(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'testMode')
 
 def getKeywords(dictionaryFileName):
+    return getListFromConfig(dictionaryFileName,'search_keywords')
+
+def getGreetings(dictionaryFileName):
+    return getListFromConfig(dictionaryFileName,'greetings')
+
+def getMessageText(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'message_text')
+
+def getFileOfUsedNames(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'fileOfUsedNames')
+
+
+
+def getStringOrIntFromConfig(dictionaryFileName, key):
     with open(dictionaryFileName) as f: 
-        data = f.read() 
-      
+        data = f.read()
     # reconstructing the data as a dictionary 
-    mydict = json.loads(data)    
-    return mydict.get('search_keywords').split(",")
+    mydict = json.loads(data)
+    return mydict.get(key)
+
+def getListFromConfig(dictionaryFileName, key):
+    with open(dictionaryFileName) as f: 
+        data = f.read()
+    # reconstructing the data as a dictionary 
+    mydict = json.loads(data)
+    return mydict.get(key).split(",")

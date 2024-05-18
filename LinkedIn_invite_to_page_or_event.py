@@ -15,10 +15,10 @@ else:
     configFile = sys.argv[1]
 
 #***************** CONSTANTS ***********************
-pagesToScan = 115
-invitesInOneRound = 50
+pagesToScan = 100
+invitesInOneRound = 30
 roundsToRepeat = 35
-verboseOn = 0
+verboseOn = 1
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
 
@@ -43,6 +43,7 @@ filterByFirstLocation = utils.getBoolFirstLocation(configFile)
 
 
 # ---> some contacts can not be invited and break the whole flow. We must catch those manually. That's why invitations are done in small invitesInOneRound batches
+namesInvited = []
 round = 0
 while round < roundsToRepeat:
     ###open page to invite contacts
@@ -60,20 +61,34 @@ while round < roundsToRepeat:
     checkboxes = [btn for btn in all_checkboxes]
     print("Selecting:")
     invitesSelected = 0
+    namesSelected = []    
     for btn in checkboxes:
-        oneInviteSelected = utils.selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn)
-        invitesSelected += oneInviteSelected
-        totalConnectRequests += oneInviteSelected
+        nameSelected = utils.selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn)
+        if len(nameSelected) > 0 :
+            namesSelected.append(nameSelected)
+            invitesSelected += 1
+            totalConnectRequests += 1
         if invitesSelected == invitesInOneRound: break
-    ###click Invite button for selected contacts
     if invitesSelected == 0:
-        print("No people match the search criteria. Leaving the browser open and exiting")
+        print("No people match the search criteria. Leaving the browser open and exiting.")
+        round = 99999
+    elif namesSelected == namesInvited :
+        print("!!! There's a glitch! These names were already invited. Leaving the browser open and exiting.")
+        print("Sometimes there is a weird problem with a concrete contact that breaks the flow. You can add such contact to the " + fileOfExcludedNames + " file.")
+        print("Other times the LinkedIn just stops accepting more invites to an event without an explanation. Try again after 24 hours.")
+        if verboseOn: 
+            print("---names selected:")
+            print(nameSelected)
+            print("---previously invited:")
+            print(namesInvited)
         round = 99999
     else:
         print("------Inviting--------")
+        ###click Invite button for selected contacts
         invite = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view']")
         print("Clicking button ["+invite.text+"]")
         driver.execute_script("arguments[0].click();", invite)
+        namesInvited = namesSelected.copy()
         time.sleep(2)
     round += 1
 
