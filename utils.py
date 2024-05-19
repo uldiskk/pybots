@@ -126,6 +126,46 @@ def clickFilterByFirstLocation(driver, verboseOn):
     time.sleep(2)
     return
 
+def clickFilterByLocation(driver, verboseOn, l1, l2, l3, l4, l5, l6):
+    print("Filtering contacts by the location...")
+    if(verboseOn): print("Locating [Locations]")
+    but_loc = driver.find_element(by=By.XPATH, value='''//button[@class='artdeco-pill artdeco-pill--slate artdeco-pill--choice artdeco-pill--2 search-reusables__filter-pill-button
+       reusable-search-filter-trigger-and-dropdown__trigger']''')
+    if(verboseOn): print("Clicking [Locations]")
+    driver.execute_script("arguments[0].click();", but_loc)
+    time.sleep(1)
+
+    if(verboseOn): print("Locating checkbox")
+    check_locs = driver.find_elements(by=By.XPATH, value="//input[@class='search-reusables__select-input']")
+    if l1:
+        if(verboseOn): print("Clicking checkbox 1")
+        driver.execute_script("arguments[0].click();", check_locs[0])
+    if l2:
+        if(verboseOn): print("Clicking checkbox 2")
+        driver.execute_script("arguments[0].click();", check_locs[1])
+    if l3:
+        if(verboseOn): print("Clicking checkbox 3")
+        driver.execute_script("arguments[0].click();", check_locs[2])
+    if l4:
+        if(verboseOn): print("Clicking checkbox 4")
+        driver.execute_script("arguments[0].click();", check_locs[3])
+    if l5:
+        if(verboseOn): print("Clicking checkbox 5")
+        driver.execute_script("arguments[0].click();", check_locs[4])
+    if l6:
+        if(verboseOn): print("Clicking checkbox 6")
+        driver.execute_script("arguments[0].click();", check_locs[5])
+
+    time.sleep(1)
+
+    ###click [Show Results]
+    show_button = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
+    if(verboseOn): print("Clicking button ["+show_button.text+"]")
+    driver.execute_script("arguments[0].click();", show_button)
+    time.sleep(2)
+    return
+
+
 def loadContactsToInvite(driver, pagesToScan, verboseOn):
     sys.stdout.write("Loading connections on screen")
     sys.stdout.flush()
@@ -177,6 +217,16 @@ def getUrl(dictionaryFileName):
 
 def getBoolFirstLocation(dictionaryFileName):
     return getStringOrIntFromConfig(dictionaryFileName, 'filterFirstLocation')
+def getBool2ndLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'filter2ndLocation')
+def getBool3rdLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'filter3rdLocation')
+def getBool4thLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'filter4thLocation')
+def getBool5thLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'filter5thLocation')
+def getBool6thLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName, 'filter6thLocation')
 
 def getTestMode(dictionaryFileName):
     return getStringOrIntFromConfig(dictionaryFileName, 'testMode')

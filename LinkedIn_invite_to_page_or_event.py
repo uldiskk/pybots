@@ -18,7 +18,7 @@ else:
 pagesToScan = 100
 invitesInOneRound = 30
 roundsToRepeat = 35
-verboseOn = 1
+verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
 
@@ -40,6 +40,11 @@ excludeList = utils.getExcludeList(fileOfExcludedNames, adPrinted, verboseOn)
 people_list_url = utils.getUrl(configFile)
 search_keywords = utils.getKeywords(configFile)
 filterByFirstLocation = utils.getBoolFirstLocation(configFile)
+f2 = utils.getBool2ndLocation(configFile)
+f3 = utils.getBool3rdLocation(configFile)
+f4 = utils.getBool4thLocation(configFile)
+f5 = utils.getBool5thLocation(configFile)
+f6 = utils.getBool6thLocation(configFile)
 
 
 # ---> some contacts can not be invited and break the whole flow. We must catch those manually. That's why invitations are done in small invitesInOneRound batches
@@ -51,7 +56,7 @@ while round < roundsToRepeat:
     time.sleep(5)
 
     ###click "Locations" and select top location for filter
-    if filterByFirstLocation: utils.clickFilterByFirstLocation(driver, verboseOn)
+    utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
 
     ###click "Show more results" button many times to load more contacts
     utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
