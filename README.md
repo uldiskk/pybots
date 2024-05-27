@@ -25,7 +25,7 @@ conda install -c conda-forge selenium
 ### Now you are ready to execute the scripts with "python <script>", just make sure the commandline is running from the repo folder. My example:
 cd C:/uld/pybots  
 conda activate py310  
-python LinkedIn_ind_invite_company.py  
+python LinkedIn_ind_connect_company.py
 
 
 ## Troubleshooting
