@@ -2,5 +2,6 @@
 "list_url": "https://dummy.com/lala?123/",
 "search_keywords": "devops,dev ops",
 "message_text": "text text\n\n📅test!",
-"filterFirstLocation": 1
+"filterFirstLocation": 1,
+"geoLocation": "%5B\"106491660\"%5D"
 }

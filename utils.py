@@ -237,6 +237,9 @@ def getKeywords(dictionaryFileName):
 def getGreetings(dictionaryFileName):
     return getListFromConfig(dictionaryFileName,'greetings')
 
+def getGeoLocation(dictionaryFileName):
+    return getStringOrIntFromConfig(dictionaryFileName,'geoLocation')
+
 def getMessageText(dictionaryFileName):
     return getStringOrIntFromConfig(dictionaryFileName, 'message_text')
 

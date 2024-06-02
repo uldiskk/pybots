@@ -3,6 +3,7 @@ import string
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver import Keys
 from random import randint
 import time
 import os.path
@@ -16,10 +17,6 @@ else:
     configFile = sys.argv[1]
 
 #***************** CONSTANTS ***********************
-geoLocation = '%5B"106491660"%5D'    
-#%5B%22104341318%22%5D for Latvia               
-#%5B"106491660"%5D for Riga, latvia
-
 startingPage = 1
 pagesToScan = 50 #10 on one page
 verboseOn = 0
@@ -56,6 +53,8 @@ excludeList = utils.appendListFromFileToList(excludeList, fileOfUsedNames)
 search_keywords = utils.getKeywords(configFile)
 message_text = utils.getMessageText(configFile)
 greetings = utils.getGreetings(configFile)
+geoLocation = utils.getGeoLocation(configFile)
+
 testMode = utils.getTestMode(configFile)
 
 geoFilter = ''
@@ -127,7 +126,8 @@ while pageNr < pagesToScan+startingPage:
                 boolToExclude = True
         if boolToExclude == False:
             greetings_idx = randint(0, len(greetings)-1)
-            message = greetings[greetings_idx] + " " + all_names[i] + ", " + message_text
+            # message = greetings[greetings_idx] + " " + all_names[i] + ", " + message_text
+            message = message_text
             if verboseOn: print(message)
 
             # click on [Message]
@@ -145,6 +145,8 @@ while pageNr < pagesToScan+startingPage:
             # type in the message
             try:
                 input_field = driver.find_element(by=By.XPATH, value="//div[starts-with(@class, 'msg-form__contenteditable')]")
+                time.sleep(1)
+                input_field.send_keys(Keys.ENTER)
                 input_field.send_keys(message)
                 time.sleep(2)
                 # paragraphs[-5].send_keys(message) #CRASHED HERE WHEN SOMEONE SENDS MESSAGE

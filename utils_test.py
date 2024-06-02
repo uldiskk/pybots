@@ -8,6 +8,7 @@ def testParametersGetter():
     testUrl = "https://dummy.com/lala?123/"
     testKeywordsArray = ['devops', 'dev ops']
     testFirstLocation = 1
+    testGeoLocation = '%5B"106491660"%5D'
     testMessage = '''text text
 
 📅test!'''
@@ -16,6 +17,7 @@ def testParametersGetter():
     assert utils.getKeywords(fileName) == testKeywordsArray
     assert utils.getBoolFirstLocation(fileName) == testFirstLocation
     assert utils.getMessageText(fileName) == testMessage
+    assert utils.getGeoLocation(fileName) == testGeoLocation
 
 def testWorkWithDB():
     fileOfExcludedNames = "testFiles/testExcluded.txt"
