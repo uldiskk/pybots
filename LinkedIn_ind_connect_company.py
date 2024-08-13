@@ -12,7 +12,8 @@ target_keywords = ''
 exclude_keywords = ''
 #***************** CONSTANTS ***********************
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
-                  'CTO', 'CEO', 'executive', 'founder'
+                'DevOps', 'artificial'
+                # 'CTO', 'CEO', 'executive', 'founder', 'partner'
                 #    'CTO', 'CSO', 'scrum', 'coach', 'CIO'                 
                 #  , 'lead', 'director',
 #]
@@ -64,7 +65,7 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 
 
 maxConnects = 100
-startingPage = 1
+startingPage = 48
 pagesToScan = 99 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0

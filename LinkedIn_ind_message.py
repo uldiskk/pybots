@@ -118,8 +118,11 @@ while pageNr < pagesToScan+startingPage:
         print("Scanning for [Message] buttons failed. Did someone send a chat message? Refreshing the screen.")
         continue
     
-
+    crashCount = 0
     for i in range(0, len(message_buttons)):
+        if crashCount > 2:
+            print("Something weird is going on. Exiting.")
+            exit()
         boolToExclude = False
         for excludedContact in excludeList:
             if excludedContact.strip().lower() in re.sub(r"[\n\t\s]*", "", all_full_names[i].lower()):
@@ -145,7 +148,7 @@ while pageNr < pagesToScan+startingPage:
             # type in the message
             try:
                 input_field = driver.find_element(by=By.XPATH, value="//div[starts-with(@class, 'msg-form__contenteditable')]")
-                time.sleep(1)
+                time.sleep(2)
                 input_field.send_keys(Keys.ENTER)
                 input_field.send_keys(message)
                 time.sleep(2)
@@ -202,6 +205,7 @@ while pageNr < pagesToScan+startingPage:
                     totalMessages += 1
                 except:
                     print("Something crushed while sending the message. Continue...")
+                    crashCount += 1
                 time.sleep(randint(2, 10))
         else:
             print("Excluding: " + all_full_names[i])

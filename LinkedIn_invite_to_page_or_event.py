@@ -15,9 +15,9 @@ else:
     configFile = sys.argv[1]
 
 #***************** CONSTANTS ***********************
-pagesToScan = 100
+pagesToScan = 150
 invitesInOneRound = 30
-roundsToRepeat = 35
+roundsToRepeat = 10
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
