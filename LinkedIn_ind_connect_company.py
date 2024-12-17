@@ -12,10 +12,12 @@ target_keywords = ''
 exclude_keywords = ''
 #***************** CONSTANTS ***********************
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
-                'DevOps', 'artificial'
-                # 'CTO', 'CEO', 'executive', 'founder', 'partner'
+                #'DevOps', 'artificial'
+                # 'CTO', 'CEO', 'executive', 'founder', 'partner', 'director'
+                # 'director', 'CEO'
                 #    'CTO', 'CSO', 'scrum', 'coach', 'CIO'                 
                 #  , 'lead', 'director',
+                 'recruitment', 'talent'
 #]
 # target_keywords = [
 #     'CTO', 'CEO', 'CIO', 'chairman', 'director', 'executive', 'founder', 'investor'
@@ -64,8 +66,8 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
 
 
-maxConnects = 100
-startingPage = 48
+maxConnects = 150
+startingPage = 1
 pagesToScan = 99 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
@@ -123,8 +125,11 @@ while pageNr < pagesToScan+startingPage:
         all_span = driver.find_elements(By.TAG_NAME, value="span")
         all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true"]
         #find contact jobs
-        all_jobs = driver.find_elements(by=By.XPATH, value="//div[starts-with(@class, 'entity-result__primary-subtitle t-14 t-black t-normal')]")
-
+        all_jobs = driver.find_elements(by=By.XPATH, value="//div[starts-with(@class, 'oukptQmtHvUinPVpdWDzFRuhSZGciUo')]")
+        if len(all_jobs) == 0:
+            print("No job names found. Has the code changed?")
+            pageNr = 1000
+            exit()
         ### OUTPUT FOR TESTING
         if (verboseOn):
             vcounter = 0
@@ -132,14 +137,14 @@ while pageNr < pagesToScan+startingPage:
                 print(":" + str(vcounter))
                 print(n.text + "|len:" + str(len(n.text)) )
                 vcounter+=1
-            print("--------------")
+            print("----all_jobs start------")
             vcounter = 0
             for n in all_jobs:
                 print(":" + str(vcounter))
                 print(n.text)
                 vcounter+=1
-            print("--------------")
-
+            print("----all_jobs end------")
+        if(verboseOn): print("all_jobs[0].text.lower()=" + all_jobs[0].text.lower())
 
         #make array of contact names out of messy array
         all_full_names = []
@@ -200,9 +205,10 @@ while pageNr < pagesToScan+startingPage:
 
         counter = 0
         for btn in contact_buttons:
+            if(verboseOn): print("Iterating on button.text=" + btn.text)
             if (totalConnectRequests < maxConnects):
-                boolToExclude = True
-                theJob = all_jobs[counter].text.lower()
+                boolToExclude = True                
+                theJob = all_jobs[counter].text.lower()                
                 if btn.text == "Connect":
                     if(verboseOn): print("checking job - " + theJob)
                     if len(target_keywords) > 0:
