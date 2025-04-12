@@ -1,8 +1,10 @@
 import re
+import os
 import string
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver import Keys
 from random import randint
 import time
@@ -35,9 +37,17 @@ adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
-options = Options()
-options.add_experimental_option('detach', True)
-driver = webdriver.Chrome('chromedriver.exe', options=options)
+if os.name == 'nt':
+    options = Options()
+    options.add_experimental_option('detach', True)
+    driver = webdriver.Chrome('chromedriver.exe', options=options)
+else:
+    service = Service(executable_path=r'./chromedriver')
+    options = webdriver.ChromeOptions()
+    #options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    driver = webdriver.Chrome(service=service, options=options)
 utils.loginToLinkedin(driver, usr, pwd)
 
 #***************** LOGIC ***********************

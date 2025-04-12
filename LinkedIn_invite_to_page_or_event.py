@@ -1,7 +1,9 @@
 import string
+import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from random import randint
 import time
 import os.path
@@ -16,7 +18,7 @@ else:
 
 #***************** CONSTANTS ***********************
 pagesToScan = 150
-invitesInOneRound = 30
+invitesInOneRound = 70
 roundsToRepeat = 10
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
@@ -28,9 +30,17 @@ adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
-options = Options()
-options.add_experimental_option('detach', True)
-driver = webdriver.Chrome('chromedriver.exe', options=options)
+if os.name == 'nt':
+    options = Options()
+    options.add_experimental_option('detach', True)
+    driver = webdriver.Chrome('chromedriver.exe', options=options)
+else:
+    service = Service(executable_path=r'./chromedriver')
+    options = webdriver.ChromeOptions()
+    #options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    driver = webdriver.Chrome(service=service, options=options)
 utils.loginToLinkedin(driver, usr, pwd)
 
 #***************** LOGIC ***********************
@@ -64,9 +74,9 @@ while round < roundsToRepeat:
     ###click checkboxes based on search_keyword and exclude ones from the file listOfExcludedNames
     all_checkboxes = driver.find_elements(by=By.XPATH, value="//input[@type='checkbox']")
     checkboxes = [btn for btn in all_checkboxes]
-    print("Selecting:")
+    print("Found " + str(len(checkboxes)) + " contacts. Selecting:")
     invitesSelected = 0
-    namesSelected = []    
+    namesSelected = []
     for btn in checkboxes:
         nameSelected = utils.selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn)
         if len(nameSelected) > 0 :

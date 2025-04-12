@@ -31,5 +31,6 @@ python LinkedIn_ind_connect_company.py
 ## Troubleshooting
 If it throws error about wrong variable type, override latest selenium with "pip install selenium==4.9.0"  
 
-
+## Ubuntu support
+For Ubuntu or WSL you'll need to install the chrome. I spent quite some time on it installing and uninstalling libraries, os I lost the track of what I actually did to make it work.
 

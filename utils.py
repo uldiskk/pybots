@@ -179,7 +179,7 @@ def loadContactsToInvite(driver, pagesToScan, verboseOn):
                 sys.stdout.write(".")
                 sys.stdout.flush()
                 driver.execute_script("arguments[0].click();", btn)
-                time.sleep(2)
+                time.sleep(1)
             pageNr += 1
         except:
             sys.stdout.write("-")
@@ -202,7 +202,7 @@ def selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn):
                 driver.execute_script("arguments[0].click();", btn)
                 print("+++INVITING:" + div_parent.text + " because matches " + search_keyword)
                 nameSelected = div_parent.text.lower()
-                time.sleep(0.5)
+                time.sleep(0.1)
             else:
                 print("!!!Excluding:" + div_parent.text)
             break

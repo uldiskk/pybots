@@ -1,12 +1,21 @@
 import re
+import os
 import string
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from random import randint
 import time
 import utils
+import sys
 
+if len(sys.argv) < 2:
+    print("Please specify the html class ID for job field as a cmd parameter")
+    exit(1)
+else:
+    jobHtmlId = sys.argv[1]
+    
 search_keywords = ''
 target_keywords = ''
 exclude_keywords = ''
@@ -14,10 +23,11 @@ exclude_keywords = ''
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #'DevOps', 'artificial'
                 # 'CTO', 'CEO', 'executive', 'founder', 'partner', 'director'
-                # 'director', 'CEO'
+                #  'director', 'chief', 'education', 'edtech', 'govtech'
+                'php', 'react', 'nodejs', 'python'
                 #    'CTO', 'CSO', 'scrum', 'coach', 'CIO'                 
                 #  , 'lead', 'director',
-                 'recruitment', 'talent'
+                # 'recruitment', 'talent'
 #]
 # target_keywords = [
 #     'CTO', 'CEO', 'CIO', 'chairman', 'director', 'executive', 'founder', 'investor'
@@ -77,9 +87,18 @@ adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
-options = Options()
-options.add_experimental_option('detach', True)
-driver = webdriver.Chrome('chromedriver.exe', options=options)
+
+if os.name == 'nt':
+    options = Options()
+    options.add_experimental_option('detach', True)
+    driver = webdriver.Chrome('chromedriver.exe', options=options)
+else:
+    service = Service(executable_path=r'./chromedriver')
+    options = webdriver.ChromeOptions()
+    #options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    driver = webdriver.Chrome(service=service, options=options)
 utils.loginToLinkedin(driver, usr, pwd)
 
 
@@ -87,6 +106,7 @@ utils.loginToLinkedin(driver, usr, pwd)
 orText = '%20OR%20'
 totalConnectRequests = 0
 gotIt = 0
+crash = 0
 
 geoFilter = ''
 if geoLocation == '':
@@ -125,7 +145,8 @@ while pageNr < pagesToScan+startingPage:
         all_span = driver.find_elements(By.TAG_NAME, value="span")
         all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true"]
         #find contact jobs
-        all_jobs = driver.find_elements(by=By.XPATH, value="//div[starts-with(@class, 'oukptQmtHvUinPVpdWDzFRuhSZGciUo')]")
+        jobString = "//div[starts-with(@class, '" + jobHtmlId + "')]"
+        all_jobs = driver.find_elements(by=By.XPATH, value=jobString)
         if len(all_jobs) == 0:
             print("No job names found. Has the code changed?")
             pageNr = 1000
@@ -265,9 +286,11 @@ while pageNr < pagesToScan+startingPage:
                     time.sleep(randint(15, 30))
             else:
                 print ("maxConnects of " + maxConnects + " is reached. Skipping.")
-            counter+=1
+            crash = 0
+            counter += 1
     except:
         print("Something crashed. Looking for dialog boxes to close")
+        crash += 1
         try:
             close_button = driver.find_element(by=By.XPATH, value="//button[starts-with(@class, 'msg-overlay-bubble-header__control artdeco-button artdeco-button--circle artdeco-button--muted artdeco-button--1 artdeco-button--tertiary ember-view')]")
             driver.execute_script("arguments[0].click()", close_button)
@@ -280,6 +303,11 @@ while pageNr < pagesToScan+startingPage:
             time.sleep(1)
         except Exception:
             print("2nd Closing dialog box crashed. Continuing with the next page")
+        if(crash > 3):
+            print("Several crashes in a row. Exiting...")
+            pageNr = 1000
+            counter = 1000
+            exit()
     pageNr += 1
     #go to the next page
 
