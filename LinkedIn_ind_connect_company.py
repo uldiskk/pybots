@@ -24,34 +24,15 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #'DevOps', 'artificial'
                 # 'CTO', 'CEO', 'executive', 'founder', 'partner', 'director'
                 #  'director', 'chief', 'education', 'edtech', 'govtech'
-                'php', 'react', 'nodejs', 'python'
+                # 'php', 'drupal', 'cpacc', 'nextjs'
+                # 'prestashop', 'symfony', 'drupal', 'Software%20Engineer'
+                #   'react', 'nodejs', 'python', 'quality'
                 #    'CTO', 'CSO', 'scrum', 'coach', 'CIO'                 
                 #  , 'lead', 'director',
                 # 'recruitment', 'talent'
+                # 'project', 'manager', 'intelligence'
+                 'business', 'analyst'
 #]
-# target_keywords = [
-#     'CTO', 'CEO', 'CIO', 'chairman', 'director', 'executive', 'founder', 'investor'
-#     'board member', 'CFO', 'CSO', 'chief', 'president',
-#     'department lead', 'head of', 'vice', 'managing'
-# ]
-# exclude_keywords = [
-#     # 'engineer', kills 'engineering director'
-#     'programmer', 'developer', 'designer', 'specialist', 'data scientist', 'analyst',
-#     'qa', 'quality assurance', 'testing'
-#     # , 'product owner', 'team lead', 'coordinator', 'project manager', 'product manager', 'operations manager', 'master'
-#     # 'product', #because of CTO
-#     #  'manager', 'team lead', 'teamlead', 
-#     # 'service' #because of vice
-#     # 'technical', 
-# ]
-
-
-
-# search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
-                    #  'agile', 'scrum', 'talent'
-                     # 'aws', 'azure', 'gcp'
-                #    'devops', 'kubernetes', 'artificial intelligence', 'copilot', 'mlops'
-# ]
 # target_keywords = [ 
     # 'engineer', 'programmer', 'developer', 'designer', 'specialist', 'technical', 'data scientist', 'analyst',
     # 'qa', 'quality assurance', 'testing', 
@@ -64,9 +45,7 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
  ]
 
 
-
-
-geoLocation = ''
+geoLocation = '%5B%22106491660%22%5D'
 #%5B%22104341318%22%5D for Latvia;       %5B%22106491660%22%5D for Riga;      %5B%22101869288%22%5D Riga, Riga, Latvia
 #%5B"105117694"%5D Sweden; %5B"104514075"%5D Denmark; %5B"100456013"%5D Finland
 #%5B"102974008"%5D Estonia; %5B"105072130"%5D Poland; %5B"104688944"%5D Croatia; %5B"106178099"%5D Moldova
