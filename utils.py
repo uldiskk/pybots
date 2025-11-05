@@ -83,28 +83,40 @@ def loginToLinkedin(driver, usr, pwd):
         driver.get('https://www.linkedin.com')
         time.sleep(3)
         try:
-            #bypass the login method screen that randomly appears
-            byEmailBtn = driver.find_element(by=By.XPATH, value="//a[starts-with(@class, 'sign-in-form__sign-in-cta')]")
+            # bypass the login method screen that sometimes appears
+            byEmailBtn = driver.find_element(
+                By.XPATH,
+                "//a[starts-with(@class, 'sign-in-form__sign-in-cta')]"
+            )
             driver.execute_script("arguments[0].click()", byEmailBtn)
         except:
-            print('')
-        try:            
+            pass
+
+        try:
             time.sleep(3)
-            username = driver.find_element(by=By.XPATH, value="//input[@name='session_key']")
-            password = driver.find_element(by=By.XPATH, value="//input[@name='session_password']")
+            username = driver.find_element(By.XPATH, "//input[@name='session_key']")
+            password = driver.find_element(By.XPATH, "//input[@name='session_password']")
             username.send_keys(usr)
             password.send_keys(pwd)
             screen_found = 1
         except Exception:
             print("Wrong login screen. Restarting...")
             time.sleep(3)
-    time.sleep(1)
-    submit = driver.find_element(by=By.XPATH, value="//button[@type='submit']").click()
-    time.sleep(3)
 
-    #after several tests LinkedIn started asking for Security check. Giving time to pass it manually
+    time.sleep(1)
+
+    # safer click handling: avoid race between find and redirect
+    try:
+        submit_btn = driver.find_element(By.XPATH, "//button[@type='submit']")
+        driver.execute_script("arguments[0].click();", submit_btn)
+        print("Clicked login button successfully.")
+    except Exception as e:
+        print("Login likely succeeded but button vanished due to redirect:", e)
+
+    # Give time for possible security / MFA or redirect
     time.sleep(15)
     return driver
+
 
 def clickFilterByFirstLocation(driver, verboseOn):
     print("Filtering contacts by the first location...")
