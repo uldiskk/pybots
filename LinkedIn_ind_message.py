@@ -20,10 +20,11 @@ else:
 
 #***************** CONSTANTS ***********************
 startingPage = 1
-pagesToScan = 4
+pagesToScan = 50
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
+
 
 #-----FUNCTIONS-------------
 def saveName(name, fileOfUsedNames):
@@ -51,13 +52,11 @@ def close_all_message_popups(driver, max_passes=5):
     """
     for _ in range(max_passes):
         closed_any = False
-
-        # find all visible 'close' buttons on message overlays
         try:
             close_btns = driver.find_elements(
                 By.XPATH,
                 "//button[contains(@class,'msg-overlay-bubble-header__control')"
-                " and contains(@class,'artdeco-button--circle') and not(@disabled)]"
+                " and contains(@class,'artdeco-button--circle')]"
             )
             close_btns = [b for b in close_btns if b.is_displayed()]
         except Exception:
@@ -65,25 +64,24 @@ def close_all_message_popups(driver, max_passes=5):
 
         for b in close_btns:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", b)
                 driver.execute_script("arguments[0].click();", b)
-                time.sleep(0.2)
+                time.sleep(0.3)
                 handle_discard_popup(driver)
                 closed_any = True
             except Exception:
                 pass
 
-        # also close the “minimized” docked threads if present
+        # also close minimized chat heads
         try:
-            minimized_close_btns = driver.find_elements(
+            minimized = driver.find_elements(
                 By.XPATH,
                 "//button[contains(@class,'msg-overlay-list-bubble__dismiss-button')]"
             )
-            minimized_close_btns = [b for b in minimized_close_btns if b.is_displayed()]
-            for b in minimized_close_btns:
+            minimized = [b for b in minimized if b.is_displayed()]
+            for b in minimized:
                 try:
                     driver.execute_script("arguments[0].click();", b)
-                    time.sleep(0.2)
+                    time.sleep(0.3)
                     handle_discard_popup(driver)
                     closed_any = True
                 except Exception:
@@ -97,11 +95,7 @@ def close_all_message_popups(driver, max_passes=5):
     time.sleep(0.3)
 
 def get_latest_message_textbox(driver):
-    """
-    Return the *most recently opened* visible message textbox.
-    LinkedIn can have multiple; picking the last visible one avoids typing
-    into an older chat.
-    """
+    """Return the most recently opened visible message textbox."""
     boxes = driver.find_elements(By.XPATH, "//div[@role='textbox' and @contenteditable='true']")
     boxes = [b for b in boxes if b.is_displayed()]
     if not boxes:
@@ -114,16 +108,15 @@ adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
-
 if os.name == 'nt':
     options = Options()
     options.add_experimental_option('detach', True)
-    service = Service(executable_path='chromedriver.exe')
+    service = Service('chromedriver.exe')
     driver = webdriver.Chrome(service=service, options=options)
 else:
     service = Service(executable_path=r'./chromedriver')
     options = webdriver.ChromeOptions()
-    #options.add_argument('--headless')
+    # options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(service=service, options=options)
@@ -152,220 +145,161 @@ if geoLocation == '':
 else:
     geoFilter = 'geoUrn=' + geoLocation + '&'
 
-#----------------------------------------------------------
-# Run separate searches because LinkedIn ignores OR now
-#----------------------------------------------------------
+# build search URL with OR keywords (same logic as before)
+people_list_url = 'https://www.linkedin.com/search/results/people/?' + geoFilter + 'keywords='
 if len(search_keywords) > 1:
-    search_keyword_combos = search_keywords
+    for i in range(len(search_keywords) - 1):
+        people_list_url += search_keywords[i] + orText
+    people_list_url += search_keywords[len(search_keywords) - 1] + '&'
 else:
-    search_keyword_combos = [search_keywords[0]]
+    people_list_url += search_keywords[0] + '&'
 
-keywords_searched = 0
-any_new_messages = False  # track if at least one new person was messaged
+people_list_url += firstLevelFilter
+print("Search URL: " + people_list_url)
 
-for keyword in search_keyword_combos:
-    keywords_searched += 1
-    print("\n========== Searching for keyword:", keyword, "==========")
-    people_list_url = (
-        'https://www.linkedin.com/search/results/people/?'
-        + geoFilter
-        + 'keywords='
-        + keyword
-        + '&'
-        + firstLevelFilter
-    )
-    print("Search URL:", people_list_url)
+# iterate pages until limit
+pageNr = startingPage
+while pageNr < pagesToScan + startingPage:
+    people_list_url_pg = people_list_url + '&page=' + str(pageNr)
+    print("Search URL: " + people_list_url_pg)
+    driver.get(people_list_url_pg)
+    time.sleep(5)
 
-    new_people_found = False
-    keyword_message_count = 0
-    no_results_flag = False
+    # find contact first names
+    all_span = ''
+    try:
+        all_span = driver.find_elements(By.TAG_NAME, value="span")
+        all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
+    except:
+        print("Something crashed when reading people names. Wait 2s and try again.")
+        time.sleep(2)
+        all_span = driver.find_elements(By.TAG_NAME, value="span")
+        all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
 
-    pageNr = startingPage
-    while pageNr < pagesToScan + startingPage:
-        people_list_url_pg = people_list_url + 'page=' + str(pageNr)
-        print("Search URL:", people_list_url_pg)
-        driver.get(people_list_url_pg)
-        time.sleep(5)
+    all_full_names = []
+    all_names = []
+    for j in range(len(all_span)):
+        if len(all_span[j].text) > 5 and "Talks about" not in all_span[j].text:
+            all_full_names.append(all_span[j].text)
+            all_names.append(all_span[j].text.split(" ")[0])
 
-        # ---------- DETECT "NO RESULTS FOUND" PAGE ----------
-        try:
-            page_text = driver.find_element(By.TAG_NAME, "body").text.lower()
-            if "no results found" in page_text:
-                print(f"No results found on page {pageNr}. Stopping page loop for keyword: {keyword}")
-                no_results_flag = True
-                break
-        except Exception:
-            pass
+    # get all Message buttons
+    all_buttons = driver.find_elements(By.TAG_NAME, value="button")
+    message_buttons = ''
+    try:
+        message_buttons = [btn for btn in all_buttons if btn.text == "Message"]
+        print("message_buttons loaded and len = " + str(len(message_buttons)))
+    except:
+        print("Scanning for [Message] buttons failed. Refreshing the screen.")
+        continue
 
-        # ---------- FIND CONTACT NAMES ----------
-        all_span = ''
-        try:
-            all_span = driver.find_elements(By.TAG_NAME, value="span")
-            all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
-        except:
-            print("Something crashed when reading people names. Retrying...")
-            time.sleep(2)
-            all_span = driver.find_elements(By.TAG_NAME, value="span")
-            all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
+    crashCount = 0
+    for i in range(0, len(message_buttons)):
+        if crashCount > 2:
+            print("Something weird is going on. Exiting.")
+            exit()
 
-        if not all_span:
-            print(f"No people found in spans on page {pageNr}. Stopping page loop for keyword: {keyword}")
-            no_results_flag = True
-            break
-
-        all_full_names = []
-        all_names = []
-        for j in range(len(all_span)):
-            if len(all_span[j].text) > 5 and "Talks about" not in all_span[j].text:
-                all_full_names.append(all_span[j].text)
-                all_names.append(all_span[j].text.split(" ")[0])
-
-        excluded_count = sum(
-            1 for name in all_full_names
-            if any(ex.strip().lower() in re.sub(r"[\n\t\s]*", "", name.lower()) for ex in excludeList)
+        # skip excluded names
+        boolToExclude = any(
+            ex.strip().lower() in re.sub(r"[\n\t\s]*", "", all_full_names[i].lower()) for ex in excludeList
         )
-        if excluded_count == len(all_full_names):
-            print("All contacts already messaged on this page. Skipping page.")
-            pageNr += 1
+        if boolToExclude:
+            print("Excluding: " + all_full_names[i])
             continue
 
-        new_people_found = True
+        # --- NEW FIX ---
+        close_all_message_popups(driver)
+        # ----------------
 
-        # ---------- GET ALL MESSAGE BUTTONS ----------
+        greetings_idx = randint(0, len(greetings) - 1)
+        message = message_text
+        if verboseOn:
+            print(message)
+
+        # click on [Message]
+        driver.execute_script("arguments[0].click();", message_buttons[i])
+        time.sleep(3)
+
+        # activate cursor on text box
         try:
-            message_buttons = driver.find_elements(
+            containers = driver.find_elements(
                 By.XPATH,
-                "//button[contains(@aria-label,'Message')"
-                " or contains(@data-control-name,'message')"
-                " or contains(@class,'message-anywhere')"
-                " or .//span[normalize-space()='Message']]"
+                "//div[contains(@class,'msg-form__msg-content-container') or contains(@class,'msg-form__container')]"
             )
-            message_buttons = [b for b in message_buttons if b.is_displayed()]
-            for b in message_buttons:
-                try:
-                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", b)
-                    driver.execute_script("arguments[0].removeAttribute('disabled');", b)
-                except:
-                    pass
-            print("message_buttons loaded and len =", len(message_buttons))
-        except Exception as e:
-            print("Scanning for [Message] buttons failed. Refreshing the screen.", e)
+            containers = [c for c in containers if c.is_displayed()]
+            if containers:
+                driver.execute_script("arguments[0].click()", containers[-1])
+                time.sleep(0.5)
+        except Exception:
+            print("Couldn't select text area. Skipping " + all_names[i])
             continue
 
-        # ---------- PROCESS MESSAGES ----------
-        max_len = min(len(message_buttons), len(all_full_names), len(all_names))
-        crashCount = 0
-        for i in range(max_len):
-            if crashCount > 2:
-                print("Something weird is going on. Exiting.")
-                exit()
+        # type in message
+        try:
+            input_field = get_latest_message_textbox(driver)
+            input_field.send_keys(Keys.ENTER)
+            input_field.send_keys(message)
+            time.sleep(1)
+        except Exception as e:
+            print("ERROR typing message:", e)
+            crashCount += 1
+            continue
 
-            boolToExclude = False
-            for excludedContact in excludeList:
-                if excludedContact.strip().lower() in re.sub(r"[\n\t\s]*", "", all_full_names[i].lower()):
-                    boolToExclude = True
-            if boolToExclude:
-                print("Excluding:", all_full_names[i])
-                continue
+        # send or skip
+        try:
+            if not testMode:
+                send_clicked = False
+                send_xpaths = [
+                    # new UI (most common now)
+                    "//button[contains(@class,'msg-form__send-button') and not(@disabled)]",
+                    # older fallback
+                    "//button[@type='submit' and not(@disabled)]",
+                    # another variant (aria-label)
+                    "//button[contains(@aria-label,'Send') and not(@disabled)]"
+                ]
 
-            greetings_idx = randint(0, len(greetings) - 1)
-            message = message_text
-            if verboseOn:
-                print(message)
+                for xp in send_xpaths:
+                    try:
+                        btn = driver.find_element(By.XPATH, xp)
+                        if btn.is_displayed():
+                            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+                            time.sleep(0.3)
+                            driver.execute_script("arguments[0].click();", btn)
+                            send_clicked = True
+                            print("Message sent successfully.")
+                            break
+                    except Exception:
+                        continue
 
-            # ensure no previous popups are open before messaging
-            close_all_message_popups(driver)
+                if not send_clicked:
+                    print("Could not find [Send] button - possibly new layout or missing selector. Please contact Ricards for a fix.")
 
-            # click on [Message]
+
+            saveName(all_full_names[i], fileOfUsedNames)
+            time.sleep(1)
+
+            # close chat window
             try:
-                driver.execute_script("arguments[0].click();", message_buttons[i])
-            except Exception as e:
-                print("Cannot click message button:", e)
-                continue
-            time.sleep(3)
-
-            # activate and type message
-            try:
-                containers = driver.find_elements(
+                close_button = driver.find_element(
                     By.XPATH,
-                    "//div[contains(@class,'msg-form__msg-content-container') or contains(@class,'msg-form__container')]"
+                    "//button[contains(@class,'msg-overlay-bubble-header__control') and contains(@class,'artdeco-button--circle')]"
                 )
-                containers = [c for c in containers if c.is_displayed()]
-                if containers:
-                    driver.execute_script("arguments[0].click()", containers[-1])
-                    time.sleep(0.5)
+                driver.execute_script("arguments[0].click()", close_button)
+                time.sleep(1)
             except Exception:
                 pass
 
-            try:
-                input_field = get_latest_message_textbox(driver)
-                input_field.send_keys(Keys.ENTER)
-                input_field.send_keys(message)
-                time.sleep(1)
-            except Exception as e:
-                print("ERROR typing message:", e)
-                crashCount += 1
-                continue
+            handle_discard_popup(driver)
+            close_all_message_popups(driver)
 
-            # send or skip in test mode
-            try:
-                if not testMode:
-                    try:
-                        driver.find_element(
-                            By.XPATH,
-                            "//button[@type='submit' and contains(@class,'msg-form__send-button')]"
-                        ).click()
-                    except Exception:
-                        try:
-                            driver.find_element(By.XPATH, "//button[contains(@aria-label,'Send')]").click()
-                        except Exception:
-                            driver.find_element(By.XPATH, "//button[@type='submit']").click()
+            totalMessages += 1
+        except Exception as e:
+            print("Something crashed while sending the message. Continue...", e)
+            crashCount += 1
 
-                saveName(all_full_names[i], fileOfUsedNames)
-                time.sleep(1)
+        time.sleep(randint(2, 10))
 
-                # close message window
-                try:
-                    close_button = driver.find_element(
-                        By.XPATH,
-                        "//button[contains(@class,'msg-overlay-bubble-header__control') and contains(@class,'artdeco-button--circle')]"
-                    )
-                    driver.execute_script("arguments[0].click()", close_button)
-                    time.sleep(1)
-                except Exception:
-                    pass
+    pageNr += 1
 
-                # handle discard popup if shown
-                handle_discard_popup(driver)
-
-                # ensure all closed before next person
-                close_all_message_popups(driver)
-
-                totalMessages += 1
-                keyword_message_count += 1
-                any_new_messages = True
-            except Exception as e:
-                print("Something crashed while sending the message. Continue...", e)
-                crashCount += 1
-
-            time.sleep(randint(2, 10))
-
-        if no_results_flag:
-            break
-        pageNr += 1
-
-    if no_results_flag:
-        print(f"Stopping early for keyword '{keyword}' (no further pages).")
-    elif not new_people_found:
-        print("No new people found for keyword:", keyword)
-    else:
-        print(f"Finished keyword '{keyword}' — sent {keyword_message_count} new messages.")
-
-print("\n================ SUMMARY ================")
-print(f"Keywords searched: {keywords_searched}")
-print(f"Total messages sent: {totalMessages}")
-if not any_new_messages:
-    print("No new people left to message. Script ends here.")
-else:
-    print("Done. Script ends successfully.")
-print("=========================================")
+print("Messages sent:" + str(totalMessages))
+print("Script ends here")
