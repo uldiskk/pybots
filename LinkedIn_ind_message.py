@@ -25,111 +25,303 @@ verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
 
+# ========================= HELPERS =============================
 
-#-----FUNCTIONS-------------
 def saveName(name, fileOfUsedNames):
-    with open(fileOfUsedNames, 'a', encoding="utf8") as file:
-        file.write(name + '\n')
-    print("Name " + name + " saved")
+    with open(fileOfUsedNames, "a", encoding="utf8") as f:
+        f.write(name + "\n")
+    print("Name", name, "saved")
+
 
 def handle_discard_popup(driver):
-    """If 'Leave?' discard popup appears, click 'Discard' to continue."""
     try:
         discard_button = driver.find_element(
             By.XPATH,
-            "//button[contains(@class,'artdeco-button') and (normalize-space()='Discard' or contains(.,'Discard'))]"
+            "//button[contains(@class,'artdeco-button') and (normalize-space()='Discard' or contains(.,'Discard'))]",
         )
         driver.execute_script("arguments[0].click();", discard_button)
-        print("Detected and clicked 'Discard' on popup.")
+        print("Detected and clicked 'Discard' popup.")
         time.sleep(1)
     except Exception:
         pass
 
-def close_all_message_popups(driver, max_passes=5):
-    """
-    Close every open LinkedIn message overlay. If a Discard prompt appears,
-    click 'Discard'. Run multiple passes to catch newly-surfaced overlays.
-    """
+
+def close_all_message_popups(driver, max_passes=4):
+    """Close all LinkedIn message overlays."""
     for _ in range(max_passes):
         closed_any = False
         try:
             close_btns = driver.find_elements(
                 By.XPATH,
-                "//button[contains(@class,'msg-overlay-bubble-header__control')"
-                " and contains(@class,'artdeco-button--circle')]"
+                "//button[contains(@class,'msg-overlay-bubble-header__control') and contains(@class,'artdeco-button--circle')]",
             )
-            close_btns = [b for b in close_btns if b.is_displayed()]
+            for b in close_btns:
+                if b.is_displayed():
+                    driver.execute_script("arguments[0].click();", b)
+                    closed_any = True
+                    time.sleep(0.3)
+                    handle_discard_popup(driver)
         except Exception:
-            close_btns = []
+            pass
 
-        for b in close_btns:
-            try:
-                driver.execute_script("arguments[0].click();", b)
-                time.sleep(0.3)
-                handle_discard_popup(driver)
-                closed_any = True
-            except Exception:
-                pass
-
-        # also close minimized chat heads
         try:
             minimized = driver.find_elements(
                 By.XPATH,
-                "//button[contains(@class,'msg-overlay-list-bubble__dismiss-button')]"
+                "//button[contains(@class,'msg-overlay-list-bubble__dismiss-button')]",
             )
-            minimized = [b for b in minimized if b.is_displayed()]
             for b in minimized:
-                try:
+                if b.is_displayed():
                     driver.execute_script("arguments[0].click();", b)
+                    closed_any = True
                     time.sleep(0.3)
                     handle_discard_popup(driver)
-                    closed_any = True
-                except Exception:
-                    pass
         except Exception:
             pass
 
         if not closed_any:
             break
-
-    time.sleep(0.3)
-
-def get_latest_message_textbox(driver):
-    """Return the most recently opened visible message textbox."""
-    boxes = driver.find_elements(By.XPATH, "//div[@role='textbox' and @contenteditable='true']")
-    boxes = [b for b in boxes if b.is_displayed()]
-    if not boxes:
-        raise RuntimeError("No visible message textbox found")
-    return boxes[-1]
+    time.sleep(0.4)
 
 
-#********** LOG IN *************
-adPrinted = 0
-usr = utils.getUser(credsFile, adPrinted, verboseOn)
-adPrinted = 1
-pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
-if os.name == 'nt':
+def extract_conversation_name(driver):
+    """Read popup header like 'Close your conversation with ...'"""
+    js = r"""
+    (function(){
+      function deepQueryAll(root, selector){
+        const els=[...root.querySelectorAll(selector)];
+        const hosts=[...root.querySelectorAll('*')].filter(e=>e.shadowRoot);
+        for(const h of hosts) els.push(...deepQueryAll(h.shadowRoot, selector));
+        return els;
+      }
+      const allBtns=deepQueryAll(document,'button');
+      for(const btn of allBtns){
+        const html=btn.outerHTML||'';
+        const text=(btn.innerText||'').trim();
+        if(
+          html.includes('msg-overlay-bubble-header__control') &&
+          (html.includes('close-small')||html.includes('close-medium')) &&
+          text.toLowerCase().includes('close your conversation with')
+        ){ return text; }
+      }
+      return '';
+    })();
+    """
+    try:
+        result = driver.execute_script(js)
+        if result:
+            name = result.replace("Close your conversation with", "").strip()
+            name = name.replace("and", ",").strip()
+            print(f"[DEBUG] Extracted popup name: {name}")
+            return name
+    except Exception as e:
+        print("[WARN] Could not extract popup header name:", e)
+    return "Unknown"
+
+
+def deep_close_linkedin_msg(driver):
+    """Force-close any open message popup (shadow DOM safe)."""
+    js = r"""
+    (function deepCloseLinkedInMsg(){
+      function deepQueryAll(root,selector){
+        const els=[...root.querySelectorAll(selector)];
+        const hosts=[...root.querySelectorAll('*')].filter(e=>e.shadowRoot);
+        for(const h of hosts) els.push(...deepQueryAll(h.shadowRoot,selector));
+        return els;
+      }
+      const allButtons=deepQueryAll(document,'button');
+      for(const btn of allButtons){
+        const html=btn.outerHTML||'';
+        const text=btn.innerText?.trim()||'';
+        if(
+          html.includes('msg-overlay-bubble-header__control') &&
+          (html.includes('close-small')||html.includes('close-medium')) &&
+          (text.includes('Close')||text.includes('conversation'))
+        ){
+          ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+            btn.dispatchEvent(new MouseEvent(ev,{bubbles:true,cancelable:true,view:window}))
+          );
+          console.log('Closed popup:', text);
+          return true;
+        }
+      }
+      console.log('No popup close button found.');
+      return false;
+    })();
+    """
+    try:
+        driver.execute_script(js)
+        time.sleep(1)
+    except Exception:
+        pass
+
+
+def inject_js_compose_and_close(driver, message_text):
+    """Exact console-tested logic: write message, close window, confirm discard if popup appears."""
+    safe_message = (
+        message_text.replace("`", "\\`")
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+    )
+
+    js_code = f"""
+    (async () => {{
+      console.log("Starting LinkedIn test (auto wait for compose box + close & discard)");
+
+      // === Click first Message button ===
+      const messageButtons = [...document.querySelectorAll("button,a")].filter(el => {{
+        const label = (el.getAttribute("aria-label") || "").toLowerCase();
+        const txt = (el.innerText || "").trim().toLowerCase();
+        return (label.includes("message") || txt === "message") && el.offsetParent !== null;
+      }});
+
+      if (!messageButtons.length) return console.warn("❌ No Message buttons found.");
+      const btn = messageButtons[0];
+      console.log("Clicking first visible Message button:", btn);
+      btn.scrollIntoView({{ behavior: "smooth", block: "center" }});
+      ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+        btn.dispatchEvent(new MouseEvent(ev, {{ bubbles: true, cancelable: true }}))
+      );
+
+      console.log("Waiting up to 10 s for compose box to appear…");
+
+      // === Helper: recursive deepFind for shadow roots ===
+      function deepFind(predicate, root = document) {{
+        try {{
+          if (!root) return null;
+          if (predicate(root)) return root;
+          if (root.shadowRoot) {{
+            const r = deepFind(predicate, root.shadowRoot);
+            if (r) return r;
+          }}
+          const children = root.children || [];
+          for (let i = 0; i < children.length; i++) {{
+            const found = deepFind(predicate, children[i]);
+            if (found) return found;
+          }}
+        }} catch (e) {{}}
+        return null;
+      }}
+
+      // === Wait until compose box appears ===
+      let box = null;
+      for (let i = 0; i < 40; i++) {{ // 10s total
+        box = deepFind(node => {{
+          try {{
+            if (!node.getAttribute) return false;
+            const aria = (node.getAttribute('aria-label') || '').toLowerCase();
+            const dp = (node.getAttribute('data-placeholder') || '').toLowerCase();
+            return aria.includes('write a message') || dp.includes('write a message');
+          }} catch (e) {{ return false; }}
+        }}, document);
+        if (box) break;
+        await new Promise(r => setTimeout(r, 250));
+      }}
+
+      if (!box) return console.error("❌ Message box never appeared within 10 s.");
+
+      // === Write message ===
+      console.log("Found compose box:", box);
+      box.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+      box.style.outline = "3px solid orange";
+      const message = `{safe_message}`;
+      try {{ box.innerHTML = `<p>${{message}}</p>`; }} catch (e) {{ box.textContent = message; }}
+      box.dispatchEvent(new InputEvent('input', {{ bubbles: true, composed: true }}));
+      ['keydown','keyup','keypress'].forEach(k =>
+        box.dispatchEvent(new KeyboardEvent(k, {{ key: 'a', code: 'KeyA', bubbles: true, composed: true }}))
+      );
+      box.focus?.();
+      console.log("Message inserted (test mode).");
+
+      // === Wait before closing ===
+      await new Promise(r => setTimeout(r, 1500));
+
+      // === Close the message window ===
+      function deepQueryAll(root, selector) {{
+        const els = [...root.querySelectorAll(selector)];
+        const hosts = [...root.querySelectorAll('*')].filter(e => e.shadowRoot);
+        for (const h of hosts) els.push(...deepQueryAll(h.shadowRoot, selector));
+        return els;
+      }}
+
+      const allBtns = deepQueryAll(document, "button");
+      let closed = false;
+      for (const b of allBtns) {{
+        const html = b.outerHTML || "";
+        const text = b.innerText?.trim() || "";
+        if (
+          html.includes("msg-overlay-bubble-header__control") &&
+          (html.includes("close-small") || html.includes("close-medium")) &&
+          (text.includes("Close") || text.includes("conversation"))
+        ) {{
+          console.log("Found close button → closing conversation.");
+          ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+            b.dispatchEvent(new MouseEvent(ev, {{ bubbles: true, cancelable: true, view: window }}))
+          );
+          closed = true;
+          break;
+        }}
+      }}
+
+      if (!closed) {{
+        console.warn("Close button not found. Probably in compose page, attempting back navigation.");
+        if (window.location.href.includes('/messaging/compose')) window.history.back();
+        return;
+      }}
+
+      // === Wait and handle “Discard message?” dialog ===
+      await new Promise(r => setTimeout(r, 1200));
+      console.log("Checking for 'Discard message?' popup...");
+      const discardBtn = deepFind(node => {{
+        try {{
+          if (node.tagName === 'BUTTON') {{
+            const txt = (node.textContent || '').toLowerCase();
+            return txt.includes('discard') && !txt.includes('cancel');
+          }}
+          return false;
+        }} catch (e) {{ return false; }}
+      }}, document);
+
+      if (discardBtn) {{
+        console.log("Found 'Discard' button — clicking to confirm close.");
+        ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+          discardBtn.dispatchEvent(new MouseEvent(ev, {{ bubbles: true, cancelable: true, view: window }}))
+        );
+      }} else {{
+        console.log("No discard popup appeared (window closed cleanly).");
+      }}
+
+      console.log("Done — message written, closed, and discard handled.");
+    }})();
+    """
+    driver.execute_script(js_code)
+    time.sleep(7)
+
+# ========================= LOGIN =============================
+
+usr = utils.getUser(credsFile, 0, verboseOn)
+pwd = utils.getPwd(credsFile, 1, verboseOn)
+
+if os.name == "nt":
     options = Options()
-    options.add_experimental_option('detach', True)
-    service = Service('chromedriver.exe')
+    options.add_experimental_option("detach", True)
+    service = Service("chromedriver.exe")
     driver = webdriver.Chrome(service=service, options=options)
 else:
-    service = Service(executable_path=r'./chromedriver')
+    service = Service(executable_path=r"./chromedriver")
     options = webdriver.ChromeOptions()
-    # options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     driver = webdriver.Chrome(service=service, options=options)
 
 utils.loginToLinkedin(driver, usr, pwd)
 
-#***************** LOGIC ***********************
-orText = '%20OR%20'
-firstLevelFilter = 'network=%5B%22F%22%5D' + '&'
+# ========================= LOGIC =============================
+
+orText = "%20OR%20"
+firstLevelFilter = 'network=%5B%22F%22%5D' + "&"
 totalMessages = 0
 
-###read file with names to exclude
-excludeList = utils.getExcludeList(fileOfExcludedNames, adPrinted, verboseOn)
+excludeList = utils.getExcludeList(fileOfExcludedNames, 0, verboseOn)
 fileOfUsedNames = utils.getFileOfUsedNames(configFile)
 excludeList = utils.appendListFromFileToList(excludeList, fileOfUsedNames)
 
@@ -139,167 +331,83 @@ greetings = utils.getGreetings(configFile)
 geoLocation = utils.getGeoLocation(configFile)
 testMode = utils.getTestMode(configFile)
 
-geoFilter = ''
-if geoLocation == '':
-    geoFilter = ''
-else:
-    geoFilter = 'geoUrn=' + geoLocation + '&'
+geoFilter = f'geoUrn={geoLocation}&' if geoLocation else ''
+people_list_url = f'https://www.linkedin.com/search/results/people/?{geoFilter}keywords='
+people_list_url += orText.join(search_keywords) + "&" + firstLevelFilter
+print("Search URL:", people_list_url)
 
-# build search URL with OR keywords (same logic as before)
-people_list_url = 'https://www.linkedin.com/search/results/people/?' + geoFilter + 'keywords='
-if len(search_keywords) > 1:
-    for i in range(len(search_keywords) - 1):
-        people_list_url += search_keywords[i] + orText
-    people_list_url += search_keywords[len(search_keywords) - 1] + '&'
-else:
-    people_list_url += search_keywords[0] + '&'
-
-people_list_url += firstLevelFilter
-print("Search URL: " + people_list_url)
-
-# iterate pages until limit
 pageNr = startingPage
 while pageNr < pagesToScan + startingPage:
-    people_list_url_pg = people_list_url + '&page=' + str(pageNr)
-    print("Search URL: " + people_list_url_pg)
+    people_list_url_pg = people_list_url + "&page=" + str(pageNr)
+    print(f"\n========== PAGE {pageNr} ==========")
+    print("Search URL:", people_list_url_pg)
     driver.get(people_list_url_pg)
     time.sleep(5)
 
-    # find contact first names
-    all_span = ''
-    try:
-        all_span = driver.find_elements(By.TAG_NAME, value="span")
-        all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
-    except:
-        print("Something crashed when reading people names. Wait 2s and try again.")
-        time.sleep(2)
-        all_span = driver.find_elements(By.TAG_NAME, value="span")
-        all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
+    all_span = driver.find_elements(By.TAG_NAME, "span")
+    all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
+    all_full_names = [s.text for s in all_span if len(s.text) > 5 and "Talks about" not in s.text]
 
-    all_full_names = []
-    all_names = []
-    for j in range(len(all_span)):
-        if len(all_span[j].text) > 5 and "Talks about" not in all_span[j].text:
-            all_full_names.append(all_span[j].text)
-            all_names.append(all_span[j].text.split(" ")[0])
-
-    # get all Message buttons
-    all_buttons = driver.find_elements(By.TAG_NAME, value="button")
-    message_buttons = ''
-    try:
-        message_buttons = [btn for btn in all_buttons if btn.text == "Message"]
-        print("message_buttons loaded and len = " + str(len(message_buttons)))
-    except:
-        print("Scanning for [Message] buttons failed. Refreshing the screen.")
+    message_buttons = driver.find_elements(
+        By.XPATH, "//*[self::button or self::a][contains(@aria-label,'Message') or normalize-space()='Message']"
+    )
+    print("[DEBUG] message_buttons len =", len(message_buttons))
+    if not message_buttons:
+        pageNr += 1
         continue
 
-    crashCount = 0
-    for i in range(0, len(message_buttons)):
-        if crashCount > 2:
-            print("Something weird is going on. Exiting.")
-            exit()
-
-        # skip excluded names
-        boolToExclude = any(
-            ex.strip().lower() in re.sub(r"[\n\t\s]*", "", all_full_names[i].lower()) for ex in excludeList
-        )
-        if boolToExclude:
-            print("Excluding: " + all_full_names[i])
+    for i, btn in enumerate(message_buttons):
+        name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"
+        if any(ex.strip().lower() in re.sub(r"[\n\t\s]*", "", name.lower()) for ex in excludeList):
+            print("Excluding:", name)
             continue
 
-        # --- NEW FIX ---
+        print(f"[FLOW] Messaging {name}")
         close_all_message_popups(driver)
-        # ----------------
-
-        greetings_idx = randint(0, len(greetings) - 1)
-        message = message_text
-        if verboseOn:
-            print(message)
-
-        # click on [Message]
-        driver.execute_script("arguments[0].click();", message_buttons[i])
-        time.sleep(3)
-
-        # activate cursor on text box
         try:
-            containers = driver.find_elements(
-                By.XPATH,
-                "//div[contains(@class,'msg-form__msg-content-container') or contains(@class,'msg-form__container')]"
-            )
-            containers = [c for c in containers if c.is_displayed()]
-            if containers:
-                driver.execute_script("arguments[0].click()", containers[-1])
-                time.sleep(0.5)
-        except Exception:
-            print("Couldn't select text area. Skipping " + all_names[i])
-            continue
-
-        # type in message
-        try:
-            input_field = get_latest_message_textbox(driver)
-            input_field.send_keys(Keys.ENTER)
-            input_field.send_keys(message)
-            time.sleep(1)
+            driver.execute_script("arguments[0].click();", btn)
+            print("[FLOW] Clicked message button.")
         except Exception as e:
-            print("ERROR typing message:", e)
-            crashCount += 1
+            print("Cannot click message button:", e)
             continue
 
-        # send or skip
+        time.sleep(4)
+        popup_name = extract_conversation_name(driver) or name
+
+        # ----- TEST MODE -----
+        if testMode:
+            inject_js_compose_and_close(driver, message_text)
+            saveName(popup_name, fileOfUsedNames)
+            deep_close_linkedin_msg(driver)
+            totalMessages += 1
+            print(f"[TEST MODE] Simulated message for {popup_name}")
+            continue
+        # ----------------------
+
+        # Regular send
         try:
-            if not testMode:
-                send_clicked = False
-                send_xpaths = [
-                    # new UI (most common now)
-                    "//button[contains(@class,'msg-form__send-button') and not(@disabled)]",
-                    # older fallback
-                    "//button[@type='submit' and not(@disabled)]",
-                    # another variant (aria-label)
-                    "//button[contains(@aria-label,'Send') and not(@disabled)]"
-                ]
-
-                for xp in send_xpaths:
-                    try:
-                        btn = driver.find_element(By.XPATH, xp)
-                        if btn.is_displayed():
-                            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
-                            time.sleep(0.3)
-                            driver.execute_script("arguments[0].click();", btn)
-                            send_clicked = True
-                            print("Message sent successfully.")
-                            break
-                    except Exception:
-                        continue
-
-                if not send_clicked:
-                    print("Could not find [Send] button - possibly new layout or missing selector. Please contact Ricards for a fix.")
-
-
-            saveName(all_full_names[i], fileOfUsedNames)
+            input_field = driver.find_element(By.XPATH, "//div[@role='textbox' and @contenteditable='true']")
+            input_field.send_keys(Keys.ENTER)
+            input_field.send_keys(message_text)
             time.sleep(1)
 
-            # close chat window
-            try:
-                close_button = driver.find_element(
-                    By.XPATH,
-                    "//button[contains(@class,'msg-overlay-bubble-header__control') and contains(@class,'artdeco-button--circle')]"
-                )
-                driver.execute_script("arguments[0].click()", close_button)
-                time.sleep(1)
-            except Exception:
-                pass
-
-            handle_discard_popup(driver)
-            close_all_message_popups(driver)
-
+            send_btn = driver.find_element(
+                By.XPATH, "//button[contains(@class,'msg-form__send-button') and not(@disabled)]"
+            )
+            driver.execute_script("arguments[0].click();", send_btn)
+            print(f"Message sent to {popup_name}")
+            saveName(popup_name, fileOfUsedNames)
+            time.sleep(1)
+            deep_close_linkedin_msg(driver)
             totalMessages += 1
         except Exception as e:
-            print("Something crashed while sending the message. Continue...", e)
-            crashCount += 1
+            print("Error sending to", popup_name, e)
+            deep_close_linkedin_msg(driver)
+            continue
 
-        time.sleep(randint(2, 10))
+        time.sleep(randint(2, 6))
 
     pageNr += 1
 
-print("Messages sent:" + str(totalMessages))
-print("Script ends here")
+print("\nMessages processed:", totalMessages)
+print("Script ends here.")
