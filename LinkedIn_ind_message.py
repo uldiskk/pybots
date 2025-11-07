@@ -166,7 +166,7 @@ def inject_js_compose_and_send(driver, message_text):
 
     js_code = f"""
     (async () => {{
-      console.log("Starting LinkedIn live send (same logic as test mode).");
+      console.log("Starting LinkedIn live send.");
 
       function deepFind(predicate, root = document) {{
         try {{
@@ -246,23 +246,6 @@ def inject_js_compose_and_close(driver, message_text):
     js_code = f"""
     (async () => {{
       console.log("Starting LinkedIn test (auto wait for compose box + close & discard)");
-
-      // === Click first Message button ===
-      const messageButtons = [...document.querySelectorAll("button,a")].filter(el => {{
-        const label = (el.getAttribute("aria-label") || "").toLowerCase();
-        const txt = (el.innerText || "").trim().toLowerCase();
-        return (label.includes("message") || txt === "message") && el.offsetParent !== null;
-      }});
-
-      if (!messageButtons.length) return console.warn("❌ No Message buttons found.");
-      const btn = messageButtons[0];
-      console.log("Clicking first visible Message button:", btn);
-      btn.scrollIntoView({{ behavior: "smooth", block: "center" }});
-      ['mouseover','mousedown','mouseup','click'].forEach(ev =>
-        btn.dispatchEvent(new MouseEvent(ev, {{ bubbles: true, cancelable: true }}))
-      );
-
-      console.log("Waiting up to 10 s for compose box to appear…");
 
       // === Helper: recursive deepFind for shadow roots ===
       function deepFind(predicate, root = document) {{
