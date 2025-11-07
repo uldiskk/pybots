@@ -100,7 +100,7 @@ def extract_conversation_name(driver):
         if(
           html.includes('msg-overlay-bubble-header__control') &&
           (html.includes('close-small')||html.includes('close-medium')) &&
-          text.toLowerCase().includes('close your conversation') || html.includes('msg-overlay-bubble-header__control')
+          text.toLowerCase().includes('close your conversation with')
         ){ return text; }
       }
       return '';
@@ -435,11 +435,7 @@ while pageNr < pagesToScan + startingPage:
         continue
 
     for i, btn in enumerate(message_buttons):
-        try:
-            name_el = btn.find_element(By.XPATH, ".//ancestor::li//*[self::span or self::a][@dir='auto']")
-            name = name_el.text.strip()
-        except Exception:
-            name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"
+        name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"
         if any(ex.strip().lower() in re.sub(r"[\n\t\s]*", "", name.lower()) for ex in excludeList):
             print("Excluding:", name)
             continue
