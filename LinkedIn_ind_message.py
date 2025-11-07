@@ -100,7 +100,7 @@ def extract_conversation_name(driver):
         if(
           html.includes('msg-overlay-bubble-header__control') &&
           (html.includes('close-small')||html.includes('close-medium')) &&
-          text.toLowerCase().includes('close your conversation with')
+          text.toLowerCase().includes('close your conversation') || html.includes('msg-overlay-bubble-header__control')
         ){ return text; }
       }
       return '';
@@ -153,6 +153,84 @@ def deep_close_linkedin_msg(driver):
         time.sleep(1)
     except Exception:
         pass
+
+def inject_js_compose_and_send(driver, message_text):
+    """Same logic as test mode, but presses Send instead of closing/discarding."""
+    safe_message = (
+        message_text.replace("`", "\\`")
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+    )
+
+    js_code = f"""
+    (async () => {{
+      console.log("Starting LinkedIn live send (same logic as test mode).");
+
+      function deepFind(predicate, root = document) {{
+        try {{
+          if (!root) return null;
+          if (predicate(root)) return root;
+          if (root.shadowRoot) {{
+            const r = deepFind(predicate, root.shadowRoot);
+            if (r) return r;
+          }}
+          for (const c of root.children || []) {{
+            const f = deepFind(predicate, c);
+            if (f) return f;
+          }}
+        }} catch (e) {{}}
+        return null;
+      }}
+
+      // Wait for compose box
+      let box = null;
+      for (let i = 0; i < 40; i++) {{
+        box = deepFind(n => {{
+          const a = (n.getAttribute?.('aria-label') || '').toLowerCase();
+          const d = (n.getAttribute?.('data-placeholder') || '').toLowerCase();
+          return a.includes('write a message') || d.includes('write a message');
+        }}, document);
+        if (box) break;
+        await new Promise(r => setTimeout(r, 250));
+      }}
+      if (!box) return console.warn("❌ No message box found.");
+
+      // Type message
+      const msg = `{safe_message}`;
+      box.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+      box.style.outline = '2px solid green';
+      try {{ box.innerHTML = `<p>${{msg}}</p>`; }} catch(e){{ box.textContent = msg; }}
+      box.dispatchEvent(new InputEvent('input', {{ bubbles: true, composed: true }}));
+      ['keydown','keyup','keypress'].forEach(k =>
+        box.dispatchEvent(new KeyboardEvent(k, {{ key:'a', code:'KeyA', bubbles:true, composed:true }}))
+      );
+      box.focus?.();
+      console.log("Message inserted.");
+
+      await new Promise(r => setTimeout(r, 1200));
+
+      // Find and click Send button
+      const sendBtn = deepFind(n => {{
+        try {{
+          return n.tagName === 'BUTTON' && 
+                 (n.className || '').includes('msg-form__send-button') && 
+                 !n.disabled;
+        }} catch (e) {{ return false; }}
+      }}, document);
+      if (sendBtn) {{
+        console.log("Found Send button → clicking now.");
+        ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+          sendBtn.dispatchEvent(new MouseEvent(ev, {{ bubbles: true, cancelable: true, view: window }}))
+        );
+      }} else {{
+        console.warn("No send button found!");
+      }}
+
+      console.log("Done — message sent.");
+    }})();
+    """
+    driver.execute_script(js_code)
+    time.sleep(6)
 
 
 def inject_js_compose_and_close(driver, message_text):
@@ -357,7 +435,11 @@ while pageNr < pagesToScan + startingPage:
         continue
 
     for i, btn in enumerate(message_buttons):
-        name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"
+        try:
+            name_el = btn.find_element(By.XPATH, ".//ancestor::li//*[self::span or self::a][@dir='auto']")
+            name = name_el.text.strip()
+        except Exception:
+            name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"
         if any(ex.strip().lower() in re.sub(r"[\n\t\s]*", "", name.lower()) for ex in excludeList):
             print("Excluding:", name)
             continue
@@ -379,27 +461,20 @@ while pageNr < pagesToScan + startingPage:
             inject_js_compose_and_close(driver, message_text)
             saveName(popup_name, fileOfUsedNames)
             deep_close_linkedin_msg(driver)
+            close_all_message_popups(driver)
             totalMessages += 1
             print(f"[TEST MODE] Simulated message for {popup_name}")
             continue
         # ----------------------
 
-        # Regular send
+        # ----- LIVE MODE -----
         try:
-            input_field = driver.find_element(By.XPATH, "//div[@role='textbox' and @contenteditable='true']")
-            input_field.send_keys(Keys.ENTER)
-            input_field.send_keys(message_text)
-            time.sleep(1)
-
-            send_btn = driver.find_element(
-                By.XPATH, "//button[contains(@class,'msg-form__send-button') and not(@disabled)]"
-            )
-            driver.execute_script("arguments[0].click();", send_btn)
-            print(f"Message sent to {popup_name}")
+            inject_js_compose_and_send(driver, message_text)
             saveName(popup_name, fileOfUsedNames)
-            time.sleep(1)
             deep_close_linkedin_msg(driver)
+            close_all_message_popups(driver)
             totalMessages += 1
+            print(f"[LIVE MODE] Message sent to {popup_name}")
         except Exception as e:
             print("Error sending to", popup_name, e)
             deep_close_linkedin_msg(driver)
