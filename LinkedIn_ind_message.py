@@ -11,6 +11,8 @@ import time
 import os.path
 import sys
 import utils
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 if len(sys.argv) < 2:
     print("Please specify the configuration file as a cmd parameter")
@@ -422,9 +424,33 @@ while pageNr < pagesToScan + startingPage:
     driver.get(people_list_url_pg)
     time.sleep(5)
 
-    all_span = driver.find_elements(By.TAG_NAME, "span")
-    all_span = [s for s in all_span if s.get_attribute("aria-hidden") == "true" and s.text != "Messaging"]
-    all_full_names = [s.text for s in all_span if len(s.text) > 5 and "Talks about" not in s.text]
+    # === Simple and robust name extraction (matches console-tested logic) ===
+    from selenium.common.exceptions import NoSuchElementException
+
+    all_full_names = []
+    message_anchors = driver.find_elements(By.XPATH, "//a[contains(@href,'/messaging/compose/')]")
+
+    for btn in message_anchors:
+        name_text = "Unknown"
+        parent = btn
+        try:
+            # climb up to 10 levels to find any /in/ profile link
+            for _ in range(10):
+                try:
+                    link = parent.find_element(By.XPATH, ".//a[contains(@href,'/in/')]")
+                    text = link.text.strip()
+                    if text:
+                        name_text = text
+                        break
+                except NoSuchElementException:
+                    pass
+                parent = parent.find_element(By.XPATH, "..")
+        except Exception:
+            pass
+        all_full_names.append(name_text)
+
+    print("[DEBUG] Extracted names:", all_full_names)
+
 
     message_buttons = driver.find_elements(
         By.XPATH, "//*[self::button or self::a][contains(@aria-label,'Message') or normalize-space()='Message']"
@@ -450,7 +476,7 @@ while pageNr < pagesToScan + startingPage:
             continue
 
         time.sleep(4)
-        popup_name = extract_conversation_name(driver) or name
+        popup_name = name
 
         # ----- TEST MODE -----
         if testMode:

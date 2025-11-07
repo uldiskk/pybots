@@ -1,7 +1,7 @@
 {
 "greetings": "Hello,Hi,Dear,Hey,Yo",
 "message_text": "Hi, I hope you can help me out a little. \n\nI'm looking for a Latvian B2 speaking Kubernetes engineer (mid-level). It's an engineer who has at at least 1y of a hands on experience on top of other skills. 1 day/week WFO is recommended. We at ZenIS highly appreciate open minded people and modern ways of working. We're professionals, and we're fun to work with! \n\nAny idea who could be interested? \n\nA huge thanks in advance!",
-"search_keywords": "simanovics",
+"search_keywords": "devops",
 "filterFirstLocation": 1,
 "fileOfUsedNames": "Sent_DevOps_Kubernetes.txt",
 
@@ -11,7 +11,7 @@
 "gLatvia": "%5B\"104341318\"%5D",
 "gRiga": "%5B\"101869288\"%5D",
 
-"testMode": 0
+"testMode": 1
 
 
 }
