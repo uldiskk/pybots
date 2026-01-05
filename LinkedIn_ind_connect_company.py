@@ -58,11 +58,12 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
 
 
-maxConnects = 1
+maxConnects = 3
 startingPage = 1
 pagesToScan = 1 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
+TestMode = True
 
 #********** LOG IN *************
 adPrinted = 0
@@ -133,8 +134,11 @@ while pageNr < pagesToScan+startingPage:
             pageNr += 1
             continue
 
-        if totalConnectRequests < maxConnects:
-            btn = connect_buttons[0]
+        for btn in connect_buttons:
+
+            if totalConnectRequests >= maxConnects:
+                break
+
             print("Clicking Connect button")
 
             driver.execute_script("""
@@ -148,59 +152,103 @@ while pageNr < pagesToScan+startingPage:
 
             time.sleep(2)
 
-        driver.execute_script(r"""
-        (async () => {
-        console.log("Starting Connect confirmation (deep JS)");
+            if TestMode:
+                print("TEST MODE: Connect clicked, confirmation skipped")
 
-        function deepFind(predicate, root = document) {
-            try {
-            if (!root) return null;
-            if (predicate(root)) return root;
-            if (root.shadowRoot) {
-                const r = deepFind(predicate, root.shadowRoot);
-                if (r) return r;
-            }
-            for (const c of root.children || []) {
-                const f = deepFind(predicate, c);
-                if (f) return f;
-            }
-            } catch (e) {}
-            return null;
-        }
+                driver.execute_script(r"""
+                (async () => {
+                    function deepFind(predicate, root = document) {
+                        try {
+                            if (!root) return null;
+                            if (predicate(root)) return root;
+                            if (root.shadowRoot) {
+                                const r = deepFind(predicate, root.shadowRoot);
+                                if (r) return r;
+                            }
+                            for (const c of root.children || []) {
+                                const f = deepFind(predicate, c);
+                                if (f) return f;
+                            }
+                        } catch (e) {}
+                        return null;
+                    }
 
-        // wait up to 10s for Send-without-note button
-        let btn = null;
-        for (let i = 0; i < 40; i++) {
-            btn = deepFind(n => {
-            try {
-                return n.tagName === 'BUTTON' &&
-                    n.getAttribute?.('aria-label') === 'Send without a note';
-            } catch (e) { return false; }
-            }, document);
-            if (btn) break;
-            await new Promise(r => setTimeout(r, 250));
-        }
+                    let btn = null;
+                    for (let i = 0; i < 40; i++) {
+                        btn = deepFind(n => {
+                            try {
+                                return n.tagName === 'BUTTON' &&
+                                    n.getAttribute?.('aria-label') === 'Dismiss';
+                            } catch (e) { return false; }
+                        }, document);
+                        if (btn) break;
+                        await new Promise(r => setTimeout(r, 250));
+                    }
 
-        if (!btn) {
-            console.warn("Send-without-note button not found via deepFind");
-            return false;
-        }
+                    if (!btn) return false;
 
-        console.log("Found Send-without-note button, clicking");
+                    btn.scrollIntoView({ block: 'center' });
+                    ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+                        btn.dispatchEvent(
+                            new MouseEvent(ev, { bubbles:true, cancelable:true, view:window })
+                        )
+                    );
 
-        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        ['mouseover','mousedown','mouseup','click'].forEach(ev =>
-            btn.dispatchEvent(
-            new MouseEvent(ev, { bubbles:true, cancelable:true, view:window })
-            )
-        );
+                    return true;
+                })();
+                """)
 
-        return true;
-        })();
-        """)
 
-        print("Connection request sent.")
-        totalConnectRequests += 1
+                time.sleep(1)
+                continue 
+
+            else:
+                driver.execute_script(r"""
+                (async () => {
+                    function deepFind(predicate, root = document) {
+                        try {
+                            if (!root) return null;
+                            if (predicate(root)) return root;
+                            if (root.shadowRoot) {
+                                const r = deepFind(predicate, root.shadowRoot);
+                                if (r) return r;
+                            }
+                            for (const c of root.children || []) {
+                                const f = deepFind(predicate, c);
+                                if (f) return f;
+                            }
+                        } catch (e) {}
+                        return null;
+                    }
+
+                    let btn = null;
+                    for (let i = 0; i < 40; i++) {
+                        btn = deepFind(n => {
+                            try {
+                                return n.tagName === 'BUTTON' &&
+                                    n.getAttribute?.('aria-label') === 'Send without a note';
+                            } catch (e) { return false; }
+                        }, document);
+                        if (btn) break;
+                        await new Promise(r => setTimeout(r, 250));
+                    }
+
+                    if (!btn) return false;
+
+                    btn.scrollIntoView({ block: 'center' });
+                    ['mouseover','mousedown','mouseup','click'].forEach(ev =>
+                        btn.dispatchEvent(
+                            new MouseEvent(ev, { bubbles:true, cancelable:true, view:window })
+                        )
+                    );
+
+                    return true;
+                })();
+                """)
+
+                print("Connection request sent.")
+                totalConnectRequests += 1
+                time.sleep(randint(20, 40))
 
 
     except:
@@ -218,5 +266,5 @@ while pageNr < pagesToScan+startingPage:
 
     pageNr += 1
 
-print("Requests sent:" + str(totalConnectRequests))
+print("Requests sent:", totalConnectRequests, "(TEST MODE)" if TestMode else "")
 print("Script ends here")
