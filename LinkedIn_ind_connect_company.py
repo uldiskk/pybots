@@ -64,6 +64,7 @@ pagesToScan = 1 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
 TestMode = True
+processedFile = "processed_profiles.txt"
 
 #********** LOG IN *************
 adPrinted = 0
@@ -125,6 +126,14 @@ def normalize_keywords(val):
 target_keywords = normalize_keywords(target_keywords)
 exclude_keywords = normalize_keywords(exclude_keywords)
 
+processed_profiles = set()
+
+if os.path.exists(processedFile):
+    with open(processedFile, "r", encoding="utf-8") as f:
+        processed_profiles = set(
+            line.strip() for line in f if line.strip()
+        )
+
 
 pageNr = startingPage
 while pageNr < pagesToScan+startingPage:
@@ -149,6 +158,21 @@ while pageNr < pagesToScan+startingPage:
 
             if totalConnectRequests >= maxConnects:
                 break
+
+            # -------- extract profile URL for exclusion memory --------
+            try:
+                profile_url = btn.get_attribute("href")
+            except Exception:
+                profile_url = None
+
+            if not profile_url:
+                print("No profile URL found, skipping")
+                continue
+
+            if profile_url in processed_profiles:
+                print("Already processed, skipping:", profile_url)
+                continue
+
 
             job_text = driver.execute_script("""
                 const btn = arguments[0];
@@ -193,10 +217,16 @@ while pageNr < pagesToScan+startingPage:
                 el.click();
             """, btn)
 
-            time.sleep(randint(20, 40))
+            time.sleep(randint(2, 4))
 
             if TestMode:
                 print("TEST MODE: Connect clicked, confirmation skipped")
+                
+                with open(processedFile, "a", encoding="utf-8") as f:
+                    f.write(profile_url + "\n")
+                    f.flush()
+                processed_profiles.add(profile_url)
+
                 continue
 
             # If not test mode, click "Send without a note"
@@ -256,6 +286,13 @@ while pageNr < pagesToScan+startingPage:
 
             print("Connection request sent.")
             totalConnectRequests += 1
+
+            with open(processedFile, "a", encoding="utf-8") as f:
+                f.write(profile_url + "\n")
+                f.flush()
+            processed_profiles.add(profile_url)
+
+
             time.sleep(randint(20, 40))
 
     except:
