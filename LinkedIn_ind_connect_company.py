@@ -20,8 +20,8 @@ else:
     jobHtmlId = sys.argv[1]
     
 search_keywords = ''
-target_keywords = ''
-exclude_keywords = ''
+target_keywords = 'analyst'
+exclude_keywords = 'atea'
 #***************** CONSTANTS ***********************
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #'DevOps', 'artificial'
@@ -115,6 +115,17 @@ elif len(search_keywords) == 1:
 
 people_list_url = 'https://www.linkedin.com/search/results/people/?' + geoFilter + companyFilter + keywordsFilter + 'network=%5B%22S%22%2C%22O%22%5D&origin=FACETED_SEARCH&spellCorrectionEnabled=false&'
 
+def normalize_keywords(val):
+    if not val:
+        return []
+    if isinstance(val, list):
+        return [v.lower() for v in val if v]
+    return [val.lower()]
+
+target_keywords = normalize_keywords(target_keywords)
+exclude_keywords = normalize_keywords(exclude_keywords)
+
+
 pageNr = startingPage
 while pageNr < pagesToScan+startingPage:
     people_list_url_pg = people_list_url + 'page=' + str(pageNr)
@@ -139,117 +150,113 @@ while pageNr < pagesToScan+startingPage:
             if totalConnectRequests >= maxConnects:
                 break
 
+            job_text = driver.execute_script("""
+                const btn = arguments[0];
+                let el = btn;
+                while (el && el !== document.body) {
+                    if (el.getAttribute && el.getAttribute('role') === 'listitem') {
+                        return el.innerText.toLowerCase();
+                    }
+                    el = el.parentElement;
+                }
+                return '';
+            """, btn)
+
+
+            if target_keywords:
+                if not any(k.lower() in job_text for k in target_keywords):
+                    print("Skipping profile (target_keywords)")
+                    continue
+
+            if exclude_keywords:
+                if any(k.lower() in job_text for k in exclude_keywords):
+                    print("Skipping profile (exclude_keywords)")
+                    continue
+
             print("Clicking Connect button")
 
             driver.execute_script("""
-                const btn = arguments[0];
-                ['mouseover','mousedown','mouseup','click'].forEach(ev =>
-                    btn.dispatchEvent(
-                        new MouseEvent(ev, {bubbles:true, cancelable:true, view:window})
-                    )
-                );
+                const el = arguments[0];
+                el.scrollIntoView({block:'center', inline:'center'});
+                el.focus();
+
+                ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+                    let ev;
+                    if (type.startsWith('pointer')) {
+                        ev = new PointerEvent(type, {bubbles:true, cancelable:true});
+                    } else {
+                        ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+                    }
+                    el.dispatchEvent(ev);
+                });
+
+                el.click();
             """, btn)
 
             time.sleep(2)
 
             if TestMode:
                 print("TEST MODE: Connect clicked, confirmation skipped")
+                continue
 
-                driver.execute_script(r"""
-                (async () => {
-                    function deepFind(predicate, root = document) {
-                        try {
-                            if (!root) return null;
-                            if (predicate(root)) return root;
-                            if (root.shadowRoot) {
-                                const r = deepFind(predicate, root.shadowRoot);
-                                if (r) return r;
-                            }
-                            for (const c of root.children || []) {
-                                const f = deepFind(predicate, c);
-                                if (f) return f;
-                            }
-                        } catch (e) {}
-                        return null;
-                    }
+            # If not test mode, click "Send without a note"
+            clicked = driver.execute_script(r"""
+                const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-                    let btn = null;
+                async function deepFind(predicate, root=document) {
+                    try {
+                        if (!root) return null;
+                        if (predicate(root)) return root;
+                        if (root.shadowRoot) {
+                            const s = await deepFind(predicate, root.shadowRoot);
+                            if (s) return s;
+                        }
+                        for (const c of root.children || []) {
+                            const f = await deepFind(predicate, c);
+                            if (f) return f;
+                        }
+                    } catch (e) {}
+                    return null;
+                }
+
+                async function run() {
                     for (let i = 0; i < 40; i++) {
-                        btn = deepFind(n => {
+                        const b = await deepFind(n => {
                             try {
                                 return n.tagName === 'BUTTON' &&
-                                    n.getAttribute?.('aria-label') === 'Dismiss';
+                                       n.getAttribute('aria-label') === 'Send without a note';
                             } catch (e) { return false; }
-                        }, document);
-                        if (btn) break;
-                        await new Promise(r => setTimeout(r, 250));
+                        });
+                        if (b) {
+                            b.scrollIntoView({block:'center'});
+                            b.focus();
+                            ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+                                let ev;
+                                if (type.startsWith('pointer')) {
+                                    ev = new PointerEvent(type, {bubbles:true, cancelable:true});
+                                } else {
+                                    ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+                                }
+                                b.dispatchEvent(ev);
+                            });
+                            b.click();
+                            return true;
+                        }
+                        await sleep(250);
                     }
+                    return false;
+                }
 
-                    if (!btn) return false;
+                return run();
+            """)
 
-                    btn.scrollIntoView({ block: 'center' });
-                    ['mouseover','mousedown','mouseup','click'].forEach(ev =>
-                        btn.dispatchEvent(
-                            new MouseEvent(ev, { bubbles:true, cancelable:true, view:window })
-                        )
-                    );
+            if not clicked:
+                print("Send-without-note button not found or click failed")
+                continue
 
-                    return true;
-                })();
-                """)
-
-
-                time.sleep(1)
-                continue 
-
-            else:
-                driver.execute_script(r"""
-                (async () => {
-                    function deepFind(predicate, root = document) {
-                        try {
-                            if (!root) return null;
-                            if (predicate(root)) return root;
-                            if (root.shadowRoot) {
-                                const r = deepFind(predicate, root.shadowRoot);
-                                if (r) return r;
-                            }
-                            for (const c of root.children || []) {
-                                const f = deepFind(predicate, c);
-                                if (f) return f;
-                            }
-                        } catch (e) {}
-                        return null;
-                    }
-
-                    let btn = null;
-                    for (let i = 0; i < 40; i++) {
-                        btn = deepFind(n => {
-                            try {
-                                return n.tagName === 'BUTTON' &&
-                                    n.getAttribute?.('aria-label') === 'Send without a note';
-                            } catch (e) { return false; }
-                        }, document);
-                        if (btn) break;
-                        await new Promise(r => setTimeout(r, 250));
-                    }
-
-                    if (!btn) return false;
-
-                    btn.scrollIntoView({ block: 'center' });
-                    ['mouseover','mousedown','mouseup','click'].forEach(ev =>
-                        btn.dispatchEvent(
-                            new MouseEvent(ev, { bubbles:true, cancelable:true, view:window })
-                        )
-                    );
-
-                    return true;
-                })();
-                """)
-
-                print("Connection request sent.")
-                totalConnectRequests += 1
-                time.sleep(randint(20, 40))
-
+            print("Connection request sent.")
+            totalConnectRequests += 1
+            time.sleep(2)
 
     except:
         print("Something crashed. Looking for dialog boxes to close")
