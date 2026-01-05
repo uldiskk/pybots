@@ -193,7 +193,7 @@ while pageNr < pagesToScan+startingPage:
                 el.click();
             """, btn)
 
-            time.sleep(2)
+            time.sleep(randint(20, 40))
 
             if TestMode:
                 print("TEST MODE: Connect clicked, confirmation skipped")
@@ -256,7 +256,7 @@ while pageNr < pagesToScan+startingPage:
 
             print("Connection request sent.")
             totalConnectRequests += 1
-            time.sleep(2)
+            time.sleep(randint(20, 40))
 
     except:
         print("Something crashed. Looking for dialog boxes to close")
