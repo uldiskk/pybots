@@ -12,16 +12,10 @@ from random import randint
 import time
 import utils
 import sys
-
-if len(sys.argv) < 2:
-    print("Please specify the html class ID for job field as a cmd parameter")
-    exit(1)
-else:
-    jobHtmlId = sys.argv[1]
     
 search_keywords = ''
-target_keywords = 'analyst'
-exclude_keywords = 'atea'
+target_keywords = ''
+exclude_keywords = ''
 #***************** CONSTANTS ***********************
 search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #'DevOps', 'artificial'
@@ -311,4 +305,5 @@ while pageNr < pagesToScan+startingPage:
     pageNr += 1
 
 print("Requests sent:", totalConnectRequests, "(TEST MODE)" if TestMode else "")
+
 print("Script ends here")
