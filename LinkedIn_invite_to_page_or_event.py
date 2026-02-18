@@ -31,9 +31,11 @@ usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
 if os.name == 'nt':
+    from webdriver_manager.chrome import ChromeDriverManager
     options = Options()
     options.add_experimental_option('detach', True)
-    driver = webdriver.Chrome('chromedriver.exe', options=options)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
 else:
     service = Service(executable_path=r'./chromedriver')
     options = webdriver.ChromeOptions()
@@ -42,6 +44,56 @@ else:
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(service=service, options=options)
 utils.loginToLinkedin(driver, usr, pwd)
+
+
+# EVENT FIX
+def open_event_invite_dialog_if_needed(driver, people_list_url):
+    if "/events/" not in people_list_url:
+        return
+
+    print("Detected event URL. Opening Share and Invite flow.")
+    time.sleep(5)
+
+    # 1️⃣ Click Share tab (event-management-share-event-tab)
+    clicked_share = driver.execute_script("""
+        const el = document.querySelector('[data-view-name="event-management-share-event-tab"]');
+        if (!el) return false;
+
+        el.scrollIntoView({block:'center'});
+        ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+            let ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+            el.dispatchEvent(ev);
+        });
+        el.click();
+        return true;
+    """)
+
+    if not clicked_share:
+        print("Share button not found")
+        return
+
+    time.sleep(3)
+
+    # 2️⃣ Click Invite link (event-management-invite)
+    clicked_invite = driver.execute_script("""
+        const el = document.querySelector('[data-view-name="event-management-invite"]');
+        if (!el) return false;
+
+        el.scrollIntoView({block:'center'});
+        ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+            let ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+            el.dispatchEvent(ev);
+        });
+        el.click();
+        return true;
+    """)
+
+    if not clicked_invite:
+        print("Invite link not found")
+        return
+
+    time.sleep(5)
+
 
 #***************** LOGIC ***********************
 totalConnectRequests = 0
@@ -65,10 +117,10 @@ while round < roundsToRepeat:
     driver.get(people_list_url)
     time.sleep(5)
 
-    ###click "Locations" and select top location for filter
-    utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
+    open_event_invite_dialog_if_needed(driver, people_list_url)
 
-    ###click "Show more results" button many times to load more contacts
+if "/events/" not in people_list_url:
+    utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
     utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
 
     ###click checkboxes based on search_keyword and exclude ones from the file listOfExcludedNames
