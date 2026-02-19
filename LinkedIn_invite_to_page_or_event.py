@@ -16,20 +16,20 @@ if len(sys.argv) < 2:
 else:
     configFile = sys.argv[1]
 
-#***************** CONSTANTS ***********************
+# ***************** CONSTANTS ***********************
 pagesToScan = 150
-invitesInOneRound = 70
-roundsToRepeat = 10
+invitesInOneRound = 2
+roundsToRepeat = 3
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
 
-
-#********** LOG IN *************
+# ********** LOG IN *************
 adPrinted = 0
 usr = utils.getUser(credsFile, adPrinted, verboseOn)
 adPrinted = 1
 pwd = utils.getPwd(credsFile, adPrinted, verboseOn)
+
 if os.name == 'nt':
     from webdriver_manager.chrome import ChromeDriverManager
     options = Options()
@@ -39,63 +39,37 @@ if os.name == 'nt':
 else:
     service = Service(executable_path=r'./chromedriver')
     options = webdriver.ChromeOptions()
-    #options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(service=service, options=options)
+
 utils.loginToLinkedin(driver, usr, pwd)
 
 
-# EVENT FIX
-def open_event_invite_dialog_if_needed(driver, people_list_url):
+# EVENT FLOW
+def open_event_invite_dialog(driver, people_list_url):
     if "/events/" not in people_list_url:
         return
 
     print("Detected event URL. Opening Share and Invite flow.")
-    time.sleep(5)
+    time.sleep(3)
 
-    # 1️⃣ Click Share tab (event-management-share-event-tab)
-    clicked_share = driver.execute_script("""
-        const el = document.querySelector('[data-view-name="event-management-share-event-tab"]');
-        if (!el) return false;
-
-        el.scrollIntoView({block:'center'});
-        ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
-            let ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
-            el.dispatchEvent(ev);
-        });
-        el.click();
-        return true;
+    driver.execute_script("""
+        const share = document.querySelector('[data-view-name="event-management-share-event-tab"]');
+        if (share) share.click();
     """)
 
-    if not clicked_share:
-        print("Share button not found")
-        return
+    time.sleep(2)
+
+    driver.execute_script("""
+        const invite = document.querySelector('[data-view-name="event-management-invite"]');
+        if (invite) invite.click();
+    """)
 
     time.sleep(3)
 
-    # 2️⃣ Click Invite link (event-management-invite)
-    clicked_invite = driver.execute_script("""
-        const el = document.querySelector('[data-view-name="event-management-invite"]');
-        if (!el) return false;
 
-        el.scrollIntoView({block:'center'});
-        ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
-            let ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
-            el.dispatchEvent(ev);
-        });
-        el.click();
-        return true;
-    """)
-
-    if not clicked_invite:
-        print("Invite link not found")
-        return
-
-    time.sleep(5)
-
-
-#***************** LOGIC ***********************
+# ***************** LOGIC ***********************
 totalConnectRequests = 0
 
 excludeList = utils.getExcludeList(fileOfExcludedNames, adPrinted, verboseOn)
@@ -108,55 +82,95 @@ f4 = utils.getBool4thLocation(configFile)
 f5 = utils.getBool5thLocation(configFile)
 f6 = utils.getBool6thLocation(configFile)
 
-
-# ---> some contacts can not be invited and break the whole flow. We must catch those manually. That's why invitations are done in small invitesInOneRound batches
-namesInvited = []
 round = 0
+
 while round < roundsToRepeat:
-    ###open page to invite contacts
+
     driver.get(people_list_url)
-    time.sleep(5)
+    time.sleep(4)
 
-    open_event_invite_dialog_if_needed(driver, people_list_url)
+    if "/events/" not in people_list_url:
 
-if "/events/" not in people_list_url:
-    utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
-    utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
+        utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
+        utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
 
-    ###click checkboxes based on search_keyword and exclude ones from the file listOfExcludedNames
-    all_checkboxes = driver.find_elements(by=By.XPATH, value="//input[@type='checkbox']")
-    checkboxes = [btn for btn in all_checkboxes]
-    print("Found " + str(len(checkboxes)) + " contacts. Selecting:")
-    invitesSelected = 0
-    namesSelected = []
-    for btn in checkboxes:
-        nameSelected = utils.selectContactToInvite(driver, btn, search_keywords, excludeList, verboseOn)
-        if len(nameSelected) > 0 :
-            namesSelected.append(nameSelected)
-            invitesSelected += 1
-            totalConnectRequests += 1
-        if invitesSelected == invitesInOneRound: break
-    if invitesSelected == 0:
-        print("No people match the search criteria. Leaving the browser open and exiting.")
-        round = 99999
-    elif namesSelected == namesInvited :
-        print("!!! There's a glitch! These names were already invited. Leaving the browser open and exiting.")
-        print("Sometimes there is a weird problem with a concrete contact that breaks the flow. You can add such contact to the " + fileOfExcludedNames + " file.")
-        print("Other times the LinkedIn just stops accepting more invites to an event without an explanation. Try again after 24 hours.")
-        if verboseOn: 
-            print("---names selected:")
-            print(nameSelected)
-            print("---previously invited:")
-            print(namesInvited)
-        round = 99999
-    else:
+        all_checkboxes = driver.find_elements(By.XPATH, "//input[@type='checkbox']")
+        print("Found " + str(len(all_checkboxes)) + " contacts. Selecting:")
+
+        invitesSelected = 0
+
+        for btn in all_checkboxes:
+            nameSelected = utils.selectContactToInvite(
+                driver, btn, search_keywords, excludeList, verboseOn
+            )
+
+            if len(nameSelected) > 0:
+                invitesSelected += 1
+
+            if invitesSelected >= invitesInOneRound:
+                break
+
+        if invitesSelected == 0:
+            print("No people match the search criteria.")
+            break
+
         print("------Inviting--------")
-        ###click Invite button for selected contacts
-        invite = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view']")
-        print("Clicking button ["+invite.text+"]")
-        driver.execute_script("arguments[0].click();", invite)
-        namesInvited = namesSelected.copy()
-        time.sleep(2)
+
+        invite = driver.find_element(By.CSS_SELECTOR, "button.artdeco-button--primary")
+        invite.click()
+        totalConnectRequests += invitesSelected
+        time.sleep(4)
+
+    else:
+
+        open_event_invite_dialog(driver, people_list_url)
+
+        card_elements = driver.execute_script("""
+            const host = document.querySelector('#interop-outlet');
+            if (!host || !host.shadowRoot) return [];
+
+            const shadow = host.shadowRoot;
+            const cards = shadow.querySelectorAll('.invitee-picker-connections-result-item--can-invite');
+
+            let result = [];
+            for (let card of cards) {
+                result.push(card);
+                if (result.length >= arguments[0]) break;
+            }
+            return result;
+        """, invitesInOneRound)
+
+        selected_count = 0
+
+        for card in card_elements:
+            try:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", card)
+                driver.execute_script("arguments[0].click();", card)
+                time.sleep(1)
+                selected_count += 1
+            except:
+                pass
+
+        print("Selected:", selected_count)
+
+        if selected_count == 0:
+            print("No inviteable users found.")
+            break
+
+        print("------Inviting--------")
+
+        driver.execute_script("""
+            const host = document.querySelector('#interop-outlet');
+            if (!host || !host.shadowRoot) return;
+
+            const shadow = host.shadowRoot;
+            const btn = shadow.querySelector("button.artdeco-button--primary");
+            if (btn) btn.click();
+        """)
+
+        totalConnectRequests += selected_count
+        time.sleep(4)
+
     round += 1
 
 print("Total invites sent:" + str(totalConnectRequests))
