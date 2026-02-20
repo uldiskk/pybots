@@ -43,6 +43,8 @@ else:
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(service=service, options=options)
 
+driver.set_window_size(1000, 650)
+
 utils.loginToLinkedin(driver, usr, pwd)
 
 
@@ -67,6 +69,55 @@ def open_event_invite_dialog(driver, people_list_url):
     """)
 
     time.sleep(3)
+
+
+def scroll_event_modal(driver, max_rounds=40):
+
+    for _ in range(max_rounds):
+
+        # Check if there are inviteable unchecked users
+        has_inviteable = driver.execute_script("""
+            const host = document.querySelector('#interop-outlet');
+            if (!host || !host.shadowRoot) return false;
+
+            const shadow = host.shadowRoot;
+            const cards = shadow.querySelectorAll('.invitee-picker__result-item');
+
+            for (let card of cards) {
+
+                const checkbox = card.querySelector('input[type="checkbox"]');
+                const invitedLabel = card.innerText.includes("Invited");
+
+                if (checkbox && !checkbox.checked && !invitedLabel) {
+                    return true;
+                }
+            }
+
+            return false;
+        """)
+
+        # If we found unchecked inviteable users → stop loading
+        if has_inviteable:
+            return
+
+        # Otherwise try clicking Show more
+        clicked = driver.execute_script("""
+            const host = document.querySelector('#interop-outlet');
+            if (!host || !host.shadowRoot) return false;
+
+            const shadow = host.shadowRoot;
+            const btn = shadow.querySelector('.scaffold-finite-scroll__load-button');
+
+            if (!btn) return false;
+
+            btn.click();
+            return true;
+        """)
+
+        if not clicked:
+            break
+
+        time.sleep(1.5)
 
 
 # ***************** LOGIC ***********************
@@ -125,18 +176,29 @@ while round < roundsToRepeat:
 
         open_event_invite_dialog(driver, people_list_url)
 
+        scroll_event_modal(driver)
+
         card_elements = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
             if (!host || !host.shadowRoot) return [];
 
             const shadow = host.shadowRoot;
-            const cards = shadow.querySelectorAll('.invitee-picker-connections-result-item--can-invite');
+            const cards = shadow.querySelectorAll('.invitee-picker__result-item');
 
             let result = [];
+
             for (let card of cards) {
-                result.push(card);
+
+                const checkbox = card.querySelector('input[type="checkbox"]');
+                const invitedLabel = card.innerText.includes("Invited");
+
+                if (checkbox && !checkbox.checked && !invitedLabel) {
+                    result.push(card);
+                }
+
                 if (result.length >= arguments[0]) break;
             }
+
             return result;
         """, invitesInOneRound)
 
@@ -144,10 +206,24 @@ while round < roundsToRepeat:
 
         for card in card_elements:
             try:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", card)
-                driver.execute_script("arguments[0].click();", card)
+                driver.execute_script("""
+                    const checkbox = arguments[0].querySelector('input[type="checkbox"]');
+                    if (checkbox && !checkbox.checked) {
+                        checkbox.click();
+                    }
+                """, card)
+
                 time.sleep(1)
-                selected_count += 1
+
+                # verify it actually got checked
+                is_checked = driver.execute_script("""
+                    const checkbox = arguments[0].querySelector('input[type="checkbox"]');
+                    return checkbox ? checkbox.checked : false;
+                """, card)
+
+                if is_checked:
+                    selected_count += 1
+
             except:
                 pass
 
@@ -165,7 +241,10 @@ while round < roundsToRepeat:
 
             const shadow = host.shadowRoot;
             const btn = shadow.querySelector("button.artdeco-button--primary");
-            if (btn) btn.click();
+
+            if (btn && !btn.disabled) {
+                btn.click();
+            }
         """)
 
         totalConnectRequests += selected_count
