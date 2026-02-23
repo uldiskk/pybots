@@ -19,7 +19,7 @@ else:
 # ***************** CONSTANTS ***********************
 pagesToScan = 150
 invitesInOneRound = 10
-roundsToRepeat = 100
+roundsToRepeat = 10
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
@@ -164,14 +164,14 @@ round = 0
 
 if "/events/" in people_list_url:
     driver.get(people_list_url)
-    time.sleep(4)
+    time.sleep(randint(3, 7))
 
 while round < roundsToRepeat:
 
     if "/events/" not in people_list_url:
 
         driver.get(people_list_url)
-        time.sleep(4)
+        time.sleep(randint(3, 6))
 
         utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
         utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
@@ -281,7 +281,7 @@ while round < roundsToRepeat:
                     }
                 """, card)
 
-                time.sleep(1)
+                time.sleep(0.8 + randint(0, 7) / 10)
 
                 # verify it actually got checked
                 is_checked = driver.execute_script("""
