@@ -18,8 +18,8 @@ else:
 
 # ***************** CONSTANTS ***********************
 pagesToScan = 150
-invitesInOneRound = 2
-roundsToRepeat = 3
+invitesInOneRound = 10
+roundsToRepeat = 100
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
 credsFile = "../creds.txt"
@@ -71,36 +71,60 @@ def open_event_invite_dialog(driver, people_list_url):
     time.sleep(3)
 
 
-def scroll_event_modal(driver, max_rounds=40):
+def scroll_event_modal(driver, search_keywords, needed_count, max_rounds=40):
 
     for _ in range(max_rounds):
 
-        # Check if there are inviteable unchecked users
-        has_inviteable = driver.execute_script("""
+        matching_count = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
-            if (!host || !host.shadowRoot) return false;
+            if (!host || !host.shadowRoot) return 0;
 
             const shadow = host.shadowRoot;
             const cards = shadow.querySelectorAll('.invitee-picker__result-item');
+
+            let count = 0;
+
+            const rawKeywords = arguments[0];
+
+            let keywords = [];
+
+            if (Array.isArray(rawKeywords)) {
+                keywords = rawKeywords.map(k => String(k).toLowerCase());
+            } else if (typeof rawKeywords === "string") {
+                keywords = rawKeywords.toLowerCase().split(",");
+            }
 
             for (let card of cards) {
 
                 const checkbox = card.querySelector('input[type="checkbox"]');
                 const invitedLabel = card.innerText.includes("Invited");
 
-                if (checkbox && !checkbox.checked && !invitedLabel) {
-                    return true;
+                if (!checkbox || checkbox.checked || invitedLabel) continue;
+
+                const text = card.innerText.toLowerCase();
+                if (!text) continue;
+
+                let match = false;
+
+                for (let kw of keywords) {
+                    if (text.includes(kw.trim())) {
+                        match = true;
+                        break;
+                    }
                 }
+
+                if (match) count++;
+
+                if (count >= arguments[1]) break;
             }
 
-            return false;
-        """)
+            return count;
+        """, search_keywords, needed_count)
 
-        # If we found unchecked inviteable users → stop loading
-        if has_inviteable:
+        if matching_count >= needed_count:
+            time.sleep(0.5)
             return
 
-        # Otherwise try clicking Show more
         clicked = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
             if (!host || !host.shadowRoot) return false;
@@ -115,9 +139,10 @@ def scroll_event_modal(driver, max_rounds=40):
         """)
 
         if not clicked:
-            break
+            return
 
         time.sleep(1.5)
+        time.sleep(0.5)
 
 
 # ***************** LOGIC ***********************
@@ -133,14 +158,20 @@ f4 = utils.getBool4thLocation(configFile)
 f5 = utils.getBool5thLocation(configFile)
 f6 = utils.getBool6thLocation(configFile)
 
+already_selected = set()
+
 round = 0
 
-while round < roundsToRepeat:
-
+if "/events/" in people_list_url:
     driver.get(people_list_url)
     time.sleep(4)
 
+while round < roundsToRepeat:
+
     if "/events/" not in people_list_url:
+
+        driver.get(people_list_url)
+        time.sleep(4)
 
         utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
         utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
@@ -176,7 +207,7 @@ while round < roundsToRepeat:
 
         open_event_invite_dialog(driver, people_list_url)
 
-        scroll_event_modal(driver)
+        scroll_event_modal(driver, search_keywords, invitesInOneRound)
 
         card_elements = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
@@ -193,19 +224,56 @@ while round < roundsToRepeat:
                 const invitedLabel = card.innerText.includes("Invited");
 
                 if (checkbox && !checkbox.checked && !invitedLabel) {
-                    result.push(card);
+
+                    const text = card.innerText.toLowerCase();
+                    if (!text) continue;
+
+                    const rawKeywords = arguments[1];
+
+                    let keywords = [];
+
+                    if (Array.isArray(rawKeywords)) {
+                        keywords = rawKeywords.map(k => String(k).toLowerCase());
+                    } else if (typeof rawKeywords === "string") {
+                        keywords = rawKeywords.toLowerCase().split(",");
+                    } else {
+                        keywords = [];
+                    }
+
+                    let match = false;
+
+                    for (let kw of keywords) {
+                        if (text.includes(kw.trim())) {
+                            match = true;
+                            break;
+                        }
+                    }
+
+                    if (match) {
+                        result.push(card);
+                    }
                 }
 
                 if (result.length >= arguments[0]) break;
             }
 
             return result;
-        """, invitesInOneRound)
+        """, invitesInOneRound, search_keywords)
 
         selected_count = 0
 
         for card in card_elements:
             try:
+                name = driver.execute_script("""
+                    const el = arguments[0].querySelector('span');
+                    return el ? el.innerText : arguments[0].innerText;
+                """, card)
+
+                if name in already_selected:
+                    continue
+
+                already_selected.add(name)
+
                 driver.execute_script("""
                     const checkbox = arguments[0].querySelector('input[type="checkbox"]');
                     if (checkbox && !checkbox.checked) {
