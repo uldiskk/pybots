@@ -71,7 +71,7 @@ def open_event_invite_dialog(driver, people_list_url):
     time.sleep(3)
 
 
-def scroll_event_modal(driver, search_keywords, needed_count, max_rounds=40):
+def scroll_event_modal(driver, search_keywords, needed_count, max_rounds=200):
 
     for _ in range(max_rounds):
 
