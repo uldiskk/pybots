@@ -56,17 +56,59 @@ def open_event_invite_dialog(driver, people_list_url):
     print("Detected event URL. Opening Share and Invite flow.")
     time.sleep(3)
 
-    driver.execute_script("""
-        const share = document.querySelector('[data-view-name="event-management-share-event-tab"]');
-        if (share) share.click();
-    """)
+    share_selectors = [
+        '[data-view-name="event-management-share-event-tab"]',
+        '[data-view-name="event-management-share"]',
+        'button[aria-label*="Share"]',
+        'a[aria-label*="Share"]',
+        '.event-management__share-tab',
+    ]
+    share_clicked = driver.execute_script("""
+        const selectors = arguments[0];
+        for (let sel of selectors) {
+            const el = document.querySelector(sel);
+            if (el) { el.click(); return sel; }
+        }
+        return null;
+    """, share_selectors)
+
+    if share_clicked:
+        print("Clicked Share tab via:", share_clicked)
+    else:
+        print("WARNING: Share tab not found with any selector. Attempting text-based fallback.")
+        driver.execute_script("""
+            const all = Array.from(document.querySelectorAll('button, a, li'));
+            const el = all.find(e => e.innerText && e.innerText.trim().toLowerCase() === 'share');
+            if (el) el.click();
+        """)
 
     time.sleep(2)
 
-    driver.execute_script("""
-        const invite = document.querySelector('[data-view-name="event-management-invite"]');
-        if (invite) invite.click();
-    """)
+    invite_selectors = [
+        '[data-view-name="event-management-invite"]',
+        '[data-view-name="event-management-invite-tab"]',
+        'button[aria-label*="Invite"]',
+        'a[aria-label*="Invite"]',
+        '.event-management__invite-tab',
+    ]
+    invite_clicked = driver.execute_script("""
+        const selectors = arguments[0];
+        for (let sel of selectors) {
+            const el = document.querySelector(sel);
+            if (el) { el.click(); return sel; }
+        }
+        return null;
+    """, invite_selectors)
+
+    if invite_clicked:
+        print("Clicked Invite tab via:", invite_clicked)
+    else:
+        print("WARNING: Invite button not found with any selector. Attempting text-based fallback.")
+        driver.execute_script("""
+            const all = Array.from(document.querySelectorAll('button, a, li'));
+            const el = all.find(e => e.innerText && e.innerText.trim().toLowerCase() === 'invite');
+            if (el) el.click();
+        """)
 
     time.sleep(3)
 
@@ -157,6 +199,13 @@ f3 = utils.getBool3rdLocation(configFile)
 f4 = utils.getBool4thLocation(configFile)
 f5 = utils.getBool5thLocation(configFile)
 f6 = utils.getBool6thLocation(configFile)
+testMode = utils.getTestMode(configFile)
+if testMode is None:
+    print("WARNING: testMode not found in config. Defaulting to test mode for safety.")
+    testMode = 1
+
+if testMode:
+    print("*** TEST MODE ON — no invites will be sent ***")
 
 already_selected = set()
 
@@ -182,12 +231,19 @@ while round < roundsToRepeat:
         invitesSelected = 0
 
         for btn in all_checkboxes:
-            nameSelected = utils.selectContactToInvite(
-                driver, btn, search_keywords, excludeList, verboseOn
-            )
-
-            if len(nameSelected) > 0:
-                invitesSelected += 1
+            if testMode:
+                div_parent = btn.find_element(By.XPATH, "..")
+                for kw in search_keywords:
+                    if kw.lower() in div_parent.text.lower():
+                        print("TEST — would invite:", div_parent.text)
+                        invitesSelected += 1
+                        break
+            else:
+                nameSelected = utils.selectContactToInvite(
+                    driver, btn, search_keywords, excludeList, verboseOn
+                )
+                if len(nameSelected) > 0:
+                    invitesSelected += 1
 
             if invitesSelected >= invitesInOneRound:
                 break
@@ -196,16 +252,20 @@ while round < roundsToRepeat:
             print("No people match the search criteria.")
             break
 
-        print("------Inviting--------")
+        if testMode:
+            print("TEST — would click Invite for", invitesSelected, "people. Skipping.")
+        else:
+            print("------Inviting--------")
+            invite = driver.find_element(By.CSS_SELECTOR, "button.artdeco-button--primary")
+            invite.click()
 
-        invite = driver.find_element(By.CSS_SELECTOR, "button.artdeco-button--primary")
-        invite.click()
         totalConnectRequests += invitesSelected
         time.sleep(4)
 
     else:
 
-        open_event_invite_dialog(driver, people_list_url)
+        if "?invite=true" not in people_list_url and not testMode:
+            open_event_invite_dialog(driver, people_list_url)
 
         scroll_event_modal(driver, search_keywords, invitesInOneRound)
 
@@ -274,23 +334,27 @@ while round < roundsToRepeat:
 
                 already_selected.add(name)
 
-                driver.execute_script("""
-                    const checkbox = arguments[0].querySelector('input[type="checkbox"]');
-                    if (checkbox && !checkbox.checked) {
-                        checkbox.click();
-                    }
-                """, card)
-
-                time.sleep(0.8 + randint(0, 7) / 10)
-
-                # verify it actually got checked
-                is_checked = driver.execute_script("""
-                    const checkbox = arguments[0].querySelector('input[type="checkbox"]');
-                    return checkbox ? checkbox.checked : false;
-                """, card)
-
-                if is_checked:
+                if testMode:
+                    print("TEST — would invite:", name)
                     selected_count += 1
+                else:
+                    driver.execute_script("""
+                        const checkbox = arguments[0].querySelector('input[type="checkbox"]');
+                        if (checkbox && !checkbox.checked) {
+                            checkbox.click();
+                        }
+                    """, card)
+
+                    time.sleep(0.8 + randint(0, 7) / 10)
+
+                    # verify it actually got checked
+                    is_checked = driver.execute_script("""
+                        const checkbox = arguments[0].querySelector('input[type="checkbox"]');
+                        return checkbox ? checkbox.checked : false;
+                    """, card)
+
+                    if is_checked:
+                        selected_count += 1
 
             except:
                 pass
@@ -301,24 +365,30 @@ while round < roundsToRepeat:
             print("No inviteable users found.")
             break
 
-        print("------Inviting--------")
+        if testMode:
+            print("TEST — would click Invite for", selected_count, "people. Skipping.")
+        else:
+            print("------Inviting--------")
 
-        driver.execute_script("""
-            const host = document.querySelector('#interop-outlet');
-            if (!host || !host.shadowRoot) return;
+            driver.execute_script("""
+                const host = document.querySelector('#interop-outlet');
+                if (!host || !host.shadowRoot) return;
 
-            const shadow = host.shadowRoot;
-            const btn = shadow.querySelector("button.artdeco-button--primary");
+                const shadow = host.shadowRoot;
+                const btn = shadow.querySelector("button.artdeco-button--primary");
 
-            if (btn && !btn.disabled) {
-                btn.click();
-            }
-        """)
+                if (btn && !btn.disabled) {
+                    btn.click();
+                }
+            """)
 
         totalConnectRequests += selected_count
         time.sleep(4)
 
     round += 1
 
-print("Total invites sent:" + str(totalConnectRequests))
+if testMode:
+    print("TEST — would have sent " + str(totalConnectRequests) + " invites. None were actually sent.")
+else:
+    print("Total invites sent: " + str(totalConnectRequests))
 print("Script ends here")
