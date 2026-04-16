@@ -8,3 +8,4 @@ __pycache__/
 /Book_8.*
 /venv
 processed_profiles.txt
+chrome_profile/
