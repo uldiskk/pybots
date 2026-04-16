@@ -94,7 +94,7 @@ def loginToLinkedin(driver, usr, pwd):
 
         try:
             time.sleep(3)
-            username = driver.find_element(By.XPATH, "//input[@name='session_key']")
+            username = driver.find_element(By.ID, "username")
             password = driver.find_element(By.XPATH, "//input[@name='session_password']")
             username.send_keys(usr)
             password.send_keys(pwd)

@@ -1,0 +1,11 @@
+{
+"list_url": "https://www.linkedin.com/events/7448775225099403264/comments/?invite=true",
+"search_keywords": "Moulik",
+"filterFirstLocation": 0,
+"filter2ndLocation": 0,
+"filter3rdLocation": 0,
+"filter4thLocation": 0,
+"filter5thLocation": 0,
+"filter6thLocation": 0,
+"testMode": 1
+}
