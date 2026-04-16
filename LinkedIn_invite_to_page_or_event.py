@@ -1,4 +1,5 @@
 import string
+import re
 import os
 import urllib.request
 from selenium import webdriver
@@ -244,7 +245,6 @@ round = 0
 if "/events/" in people_list_url:
     driver.get(people_list_url)
     time.sleep(randint(3, 7))
-    open_event_invite_dialog(driver, people_list_url)
 
 while round < roundsToRepeat:
 
@@ -294,6 +294,8 @@ while round < roundsToRepeat:
         time.sleep(4)
 
     else:
+
+        open_event_invite_dialog(driver, people_list_url)
 
         scroll_event_modal(driver, search_keywords, invitesInOneRound)
 
@@ -361,6 +363,12 @@ while round < roundsToRepeat:
                     continue
 
                 already_selected.add(name)
+
+                name_clean = re.sub(r"[\n\t\s]*", "", name.lower())
+                excluded = any(e.strip().lower() in name_clean for e in excludeList)
+                if excluded:
+                    print("!!!Excluding:", name)
+                    continue
 
                 if testMode:
                     print("TEST — would invite:", name)
