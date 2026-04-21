@@ -69,9 +69,9 @@ if driver is None:
         driver = webdriver.Chrome(service=_get_chromedriver_service(), options=options)
     else:
         options = webdriver.ChromeOptions()
+        options.binary_location = "/usr/bin/google-chrome"
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        # options.add_argument("--disable-gpu")
         driver = webdriver.Chrome(service=_get_chromedriver_service(), options=options)
 
     driver.set_window_size(1000, 650)
