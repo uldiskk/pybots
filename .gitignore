@@ -9,3 +9,4 @@ __pycache__/
 /venv
 processed_profiles.txt
 chrome_profile/
+/google-chrome*

@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 from random import randint
 import time
 import utils
@@ -28,7 +29,7 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #  , 'lead', 'director',
                 # 'recruitment', 'talent'
                 # 'project', 'manager', 'intelligence'
-                 'business', 'analyst'
+                 'board', 'founder'
 #]
 # target_keywords = [ 
     # 'engineer', 'programmer', 'developer', 'designer', 'specialist', 'technical', 'data scientist', 'analyst',
@@ -52,12 +53,12 @@ company = ''    # %5B%22114044%22%5D for Evolution; dynatech %5B"17893047"%5D ; 
 # %5B"61613"%5D airBaltic ; %5B"10648463"%5D printify ;   %5B%225333%22%5D If Insurance
 
 
-maxConnects = 3
+maxConnects = 100
 startingPage = 1
-pagesToScan = 1 #10 on one page; 100 is max
+pagesToScan = 30 #10 on one page; 100 is max
 credsFile = "../creds.txt"
 verboseOn = 0
-TestMode = True
+TestMode = False
 processedFile = "processed_profiles.txt"
 
 #********** LOG IN *************
@@ -72,8 +73,9 @@ if os.name == 'nt':
     service = Service("chromedriver.exe")
     driver = webdriver.Chrome(service=service, options=options)
 else:
-    service = Service(executable_path=r'./chromedriver')
+    service = Service(ChromeDriverManager().install())
     options = webdriver.ChromeOptions()
+    options.binary_location = "/usr/bin/google-chrome"
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(service=service, options=options)

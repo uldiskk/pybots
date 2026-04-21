@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from random import randint
 import time
 import os.path
@@ -19,8 +20,8 @@ else:
     configFile = sys.argv[1]
 
 # ***************** CONSTANTS ***********************
-pagesToScan = 150
-invitesInOneRound = 10
+pagesToScan = 250
+invitesInOneRound = 70
 roundsToRepeat = 10
 verboseOn = 0
 fileOfExcludedNames = "../exclude.txt"
@@ -33,10 +34,9 @@ REMOTE_DEBUG_PORT = 9222
 
 def _get_chromedriver_service():
     if os.name == 'nt':
-        from webdriver_manager.chrome import ChromeDriverManager
         return Service(ChromeDriverManager().install())
     else:
-        return Service(executable_path=r'./chromedriver')
+        return Service(ChromeDriverManager().install())
 
 def try_connect_existing_browser():
     """Connect to Chrome already running with --remote-debugging-port."""
@@ -45,6 +45,7 @@ def try_connect_existing_browser():
             f"http://127.0.0.1:{REMOTE_DEBUG_PORT}/json/version", timeout=2
         )
         options = Options()
+        options.binary_location = "/usr/bin/google-chrome" #don't forget to run 'pip install -r requirements.txt' in venv
         options.add_experimental_option("debuggerAddress", f"127.0.0.1:{REMOTE_DEBUG_PORT}")
         drv = webdriver.Chrome(service=_get_chromedriver_service(), options=options)
         print(f"Connected to existing Chrome on port {REMOTE_DEBUG_PORT} — session reused, no login needed.")
@@ -70,6 +71,7 @@ if driver is None:
         options = webdriver.ChromeOptions()
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
+        # options.add_argument("--disable-gpu")
         driver = webdriver.Chrome(service=_get_chromedriver_service(), options=options)
 
     driver.set_window_size(1000, 650)
