@@ -13,19 +13,27 @@ Who am I? Check out my website at https://www.uldiskarlovskarlovskis.com/
 ## Ubuntu support
 ### First setup
 sudo apt install python3 python3-pip
+
 python3 -m venv venv
+
 source venv/bin/activate
+
 pip install -r requirements.txt
+
 sudo snap remove chromium
+
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+
 sudo apt install ./google-chrome-stable_current_amd64.deb
 
 
 ### reuse setup
 source venv/bin/activate
+
 python3 <scipt.py> [parameters]
 
 e.g.
+
 python3 LinkedIn_ind_connect_company.py
 
 
