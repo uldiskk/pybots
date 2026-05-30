@@ -29,7 +29,8 @@ search_keywords = [ #use %20 for space symbol; and 6 keywords is a limit
                 #  , 'lead', 'director',
                 # 'recruitment', 'talent'
                 # 'project', 'manager', 'intelligence'
-                 'board', 'founder'
+                # 'board', 'founder'
+                   'speaker','intelligence'
 #]
 # target_keywords = [ 
     # 'engineer', 'programmer', 'developer', 'designer', 'specialist', 'technical', 'data scientist', 'analyst',

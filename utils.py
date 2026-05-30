@@ -99,9 +99,29 @@ def loginToLinkedin(driver, usr, pwd):
             username.send_keys(usr)
             password.send_keys(pwd)
             screen_found = 1
+            print("Used standard login screen.")
         except Exception:
-            print("Wrong login screen. Restarting...")
-            time.sleep(3)
+            pass
+
+        if screen_found < 1:
+            try:
+                # Alternative login screen (React-based with dynamic IDs)
+                username = driver.find_element(By.CSS_SELECTOR, "input[autocomplete='username webauthn']")
+                password = driver.find_element(By.CSS_SELECTOR, "input[autocomplete='current-password']")
+                username.send_keys(usr)
+                time.sleep(0.5)
+                # React fields discard send_keys — use native setter + event dispatch so React registers the value
+                driver.execute_script("""
+                    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(arguments[0], arguments[1]);
+                    arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+                    arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+                """, password, pwd.strip())
+                screen_found = 1
+                print("Used alternative login screen.")
+            except Exception:
+                print("Wrong login screen. Restarting...")
+                time.sleep(3)
 
     time.sleep(1)
 
@@ -110,8 +130,14 @@ def loginToLinkedin(driver, usr, pwd):
         submit_btn = driver.find_element(By.XPATH, "//button[@type='submit']")
         driver.execute_script("arguments[0].click();", submit_btn)
         print("Clicked login button successfully.")
-    except Exception as e:
-        print("Login likely succeeded but button vanished due to redirect:", e)
+    except Exception:
+        try:
+            # Fallback: find button containing a "Sign in" span (alternative screen)
+            submit_btn = driver.find_element(By.XPATH, "//button[.//span[text()='Sign in']]")
+            driver.execute_script("arguments[0].click();", submit_btn)
+            print("Clicked login button (alternative) successfully.")
+        except Exception as e:
+            print("Login likely succeeded but button vanished due to redirect:", e)
 
     # Give time for possible security / MFA or redirect
     time.sleep(15)
