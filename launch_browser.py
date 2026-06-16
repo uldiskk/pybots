@@ -93,11 +93,14 @@ if os.name == 'nt':
     driver = webdriver.Chrome(service=service, options=options)
 else:
     from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
     from selenium import webdriver
+    from webdriver_manager.chrome import ChromeDriverManager
 
-    options = webdriver.ChromeOptions()
+    options = Options()
+    options.binary_location = "/usr/bin/google-chrome"
     options.add_experimental_option("debuggerAddress", f"127.0.0.1:{REMOTE_DEBUG_PORT}")
-    service = Service(executable_path=_osp.join(SCRIPT_DIR, "chromedriver"))
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
 
 # check if already logged in

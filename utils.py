@@ -144,63 +144,52 @@ def loginToLinkedin(driver, usr, pwd):
     return driver
 
 
-def clickFilterByFirstLocation(driver, verboseOn):
-    print("Filtering contacts by the first location...")
+def _open_locations_dropdown(driver, verboseOn):
+    """Click the Locations filter pill and return (dropdown_element, checkboxes_list)."""
     if(verboseOn): print("Locating [Locations]")
-    but_loc = driver.find_element(by=By.XPATH, value='''//button[@class='artdeco-pill artdeco-pill--slate artdeco-pill--choice artdeco-pill--2 search-reusables__filter-pill-button
-       reusable-search-filter-trigger-and-dropdown__trigger']''')
+    # Use aria-label — robust against class whitespace changes
+    loc_btn = driver.find_element(By.XPATH, "//button[contains(@aria-label,'Locations filter')]")
+    controls_id = loc_btn.get_attribute("aria-controls")
     if(verboseOn): print("Clicking [Locations]")
-    driver.execute_script("arguments[0].click();", but_loc)
+    driver.execute_script("arguments[0].click();", loc_btn)
     time.sleep(1)
-    if(verboseOn): print("Locating checkbox")
-    check_loc = driver.find_element(by=By.XPATH, value="//input[@class='search-reusables__select-input']")
-    if(verboseOn): print("Clicking checkbox")
-    driver.execute_script("arguments[0].click();", check_loc)
-    time.sleep(1)
-    ###click [Show Results]
-    show_button = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
-    if(verboseOn): print("Clicking button ["+show_button.text+"]")
+    # Scope checkbox lookup to the specific dropdown (not all filters on the page)
+    dropdown = driver.find_element(By.ID, controls_id)
+    check_locs = dropdown.find_elements(By.CSS_SELECTOR, "input.search-reusables__select-input")
+    return dropdown, check_locs
+
+def _click_show_results(driver, verboseOn):
+    """Click the visible 'Show results' / 'Apply' button for the open filter dropdown."""
+    show_button = None
+    for btn in driver.find_elements(By.XPATH, "//button[contains(@class,'artdeco-button--primary') and @aria-label='Apply current filter to show results']"):
+        if btn.is_displayed():
+            show_button = btn
+            break
+    if not show_button:
+        show_button = driver.find_element(By.XPATH, "//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
+    if(verboseOn): print("Clicking button [" + show_button.text + "]")
     driver.execute_script("arguments[0].click();", show_button)
     time.sleep(2)
+
+def clickFilterByFirstLocation(driver, verboseOn):
+    print("Filtering contacts by the first location...")
+    dropdown, check_locs = _open_locations_dropdown(driver, verboseOn)
+    if(verboseOn): print("Clicking checkbox 1")
+    driver.execute_script("arguments[0].click();", check_locs[0])
+    time.sleep(1)
+    _click_show_results(driver, verboseOn)
     return
 
 def clickFilterByLocation(driver, verboseOn, l1, l2, l3, l4, l5, l6):
     print("Filtering contacts by the location...")
-    if(verboseOn): print("Locating [Locations]")
-    but_loc = driver.find_element(by=By.XPATH, value='''//button[@class='artdeco-pill artdeco-pill--slate artdeco-pill--choice artdeco-pill--2 search-reusables__filter-pill-button
-       reusable-search-filter-trigger-and-dropdown__trigger']''')
-    if(verboseOn): print("Clicking [Locations]")
-    driver.execute_script("arguments[0].click();", but_loc)
+    dropdown, check_locs = _open_locations_dropdown(driver, verboseOn)
+    flags = [l1, l2, l3, l4, l5, l6]
+    for i, flag in enumerate(flags):
+        if flag and i < len(check_locs):
+            if(verboseOn): print(f"Clicking checkbox {i+1}")
+            driver.execute_script("arguments[0].click();", check_locs[i])
     time.sleep(1)
-
-    if(verboseOn): print("Locating checkbox")
-    check_locs = driver.find_elements(by=By.XPATH, value="//input[@class='search-reusables__select-input']")
-    if l1:
-        if(verboseOn): print("Clicking checkbox 1")
-        driver.execute_script("arguments[0].click();", check_locs[0])
-    if l2:
-        if(verboseOn): print("Clicking checkbox 2")
-        driver.execute_script("arguments[0].click();", check_locs[1])
-    if l3:
-        if(verboseOn): print("Clicking checkbox 3")
-        driver.execute_script("arguments[0].click();", check_locs[2])
-    if l4:
-        if(verboseOn): print("Clicking checkbox 4")
-        driver.execute_script("arguments[0].click();", check_locs[3])
-    if l5:
-        if(verboseOn): print("Clicking checkbox 5")
-        driver.execute_script("arguments[0].click();", check_locs[4])
-    if l6:
-        if(verboseOn): print("Clicking checkbox 6")
-        driver.execute_script("arguments[0].click();", check_locs[5])
-
-    time.sleep(1)
-
-    ###click [Show Results]
-    show_button = driver.find_element(by=By.XPATH, value="//button[@class='artdeco-button artdeco-button--2 artdeco-button--primary ember-view ml2']")
-    if(verboseOn): print("Clicking button ["+show_button.text+"]")
-    driver.execute_script("arguments[0].click();", show_button)
-    time.sleep(2)
+    _click_show_results(driver, verboseOn)
     return
 
 
