@@ -139,7 +139,13 @@ def _notify_login_timeout(attempt, max_attempts, wait_limit, url):
         print(f"WARNING: Could not send login-timeout notification email: {e}")
 
 
-def loginToLinkedin(driver, usr, pwd):
+def _submit_login(driver, usr, pwd):
+    """Navigate to LinkedIn and submit the login form once.
+
+    Called for the initial attempt and again on every retry, so that each
+    retry actually resubmits credentials (triggering a fresh device-approval
+    request) instead of just re-checking a stale, already-submitted page.
+    """
     screen_found = 0
     while screen_found < 1:
         driver.get('https://www.linkedin.com')
@@ -204,6 +210,10 @@ def loginToLinkedin(driver, usr, pwd):
     # Give time for possible security / MFA or redirect
     time.sleep(15)
 
+
+def loginToLinkedin(driver, usr, pwd):
+    _submit_login(driver, usr, pwd)
+
     # On a new device LinkedIn may show a security verification screen
     # (checkpoint, authwall, phone/email verify). Poll until the URL confirms
     # we are on a regular LinkedIn page (not login/verify).
@@ -255,6 +265,9 @@ def loginToLinkedin(driver, usr, pwd):
         else:
             print(f"Waiting {RETRY_WAIT // 60} minutes before the next login attempt...")
             time.sleep(RETRY_WAIT)
+            print("Retrying login: reloading LinkedIn and resubmitting credentials "
+                  "(this triggers a fresh approval request on your device)...")
+            _submit_login(driver, usr, pwd)
 
     if timed_out:
         fail_count = get_login_failure_count() + 1
