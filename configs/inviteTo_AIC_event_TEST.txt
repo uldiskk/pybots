@@ -1,0 +1,10 @@
+{"list_url": "https://www.linkedin.com/events/7464554903793819648/comments/?invite=true",
+"search_keywords": "python,architect,professor,tech lead,digital lead,team lead,teamlead,product owner,project manager,lead,cto,ceo,mlops,machine,artificial,genai,chatbot,llm,mcp,intelekt,intelligence,ai,artificial,machine,ml",
+"filterFirstLocation": 1,
+"filter2ndLocation": 0,
+"filter3rdLocation": 0,
+"filter4thLocation": 0,
+"filter5thLocation": 0,
+"filter6thLocation": 0,
+"testMode": 1
+}

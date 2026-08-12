@@ -10,3 +10,4 @@ __pycache__/
 processed_profiles.txt
 chrome_profile/
 /google-chrome*
+/login_fail_count.txt

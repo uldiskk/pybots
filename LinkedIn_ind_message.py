@@ -6,6 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver import Keys
+from webdriver_manager.chrome import ChromeDriverManager
 from random import randint
 import time
 import os.path
@@ -367,14 +368,27 @@ pwd = utils.getPwd(credsFile, 1, verboseOn)
 if os.name == "nt":
     options = Options()
     options.add_experimental_option("detach", True)
-    service = Service("chromedriver.exe")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
 else:
-    service = Service(executable_path=r"./chromedriver")
     options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
+driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+    'source': "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+})
 
 utils.loginToLinkedin(driver, usr, pwd)
 
@@ -400,6 +414,7 @@ people_list_url += orText.join(search_keywords) + "&" + firstLevelFilter
 print("Search URL:", people_list_url)
 
 pageNr = startingPage
+consecutive_empty = 0
 while pageNr < pagesToScan + startingPage:
     people_list_url_pg = people_list_url + "&page=" + str(pageNr)
     print(f"\n========== PAGE {pageNr} ==========")
@@ -440,8 +455,14 @@ while pageNr < pagesToScan + startingPage:
     )
     print("[DEBUG] message_buttons len =", len(message_buttons))
     if not message_buttons:
+        print("Page title:", driver.title)
+        consecutive_empty += 1
+        if consecutive_empty > 3:
+            print("Found message buttons: 0 more than 3 times in a row. Exiting.")
+            sys.exit(0)
         pageNr += 1
         continue
+    consecutive_empty = 0
 
     for i, btn in enumerate(message_buttons):
         name = all_full_names[i] if i < len(all_full_names) else f"Unknown-{i}"

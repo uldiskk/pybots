@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import ElementClickInterceptedException
 from webdriver_manager.chrome import ChromeDriverManager
 from random import randint
 import time
@@ -65,7 +66,6 @@ if driver is None:
 
     if os.name == 'nt':
         options = Options()
-        options.add_experimental_option('detach', True)
         driver = webdriver.Chrome(service=_get_chromedriver_service(), options=options)
     else:
         options = webdriver.ChromeOptions()
@@ -119,8 +119,28 @@ def open_event_invite_dialog(driver, people_list_url):
 
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", share_el)
     time.sleep(0.5)
-    share_el.click()
-    print("Clicked Share (native).")
+    try:
+        share_el.click()
+        print("Clicked Share (native).")
+    except ElementClickInterceptedException:
+        # Something (e.g. a fixed overlay) covers the button at its current
+        # position. Re-scroll with a different alignment and retry once.
+        driver.execute_script("arguments[0].scrollIntoView({block:'start'});", share_el)
+        time.sleep(0.5)
+        try:
+            share_el.click()
+            print("Clicked Share (native, after re-scroll).")
+        except ElementClickInterceptedException:
+            # Fall back to a dispatched mouse event sequence, which still
+            # fires React's synthetic handlers but skips the point-based
+            # hit-test that a real click performs.
+            driver.execute_script("""
+                const el = arguments[0];
+                for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+                    el.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, view: window}));
+                }
+            """, share_el)
+            print("Clicked Share (dispatched event fallback).")
 
     # Step 2: wait for Invite to appear, then click it
     invite_el = None
@@ -141,83 +161,111 @@ def open_event_invite_dialog(driver, people_list_url):
         print("WARNING: Invite item never appeared after clicking Share.")
         return
 
+    invite_text = invite_el.text.strip()
     invite_el.click()
-    print("Clicked Invite:", invite_el.text.strip())
+    print("Clicked Invite:", invite_text)
     time.sleep(3)
 
 
-def scroll_event_modal(driver, search_keywords, needed_count, max_rounds=200):
+def apply_event_location_filter(driver, l1, l2, l3, l4, l5, l6):
+    """Apply the Locations filter inside the event invite picker's shadow DOM.
 
+    Clicks the Locations button, scopes to its aria-controls dropdown, clicks
+    the configured location checkboxes, then clicks Show results.
+    """
+    flags = [l1, l2, l3, l4, l5, l6]
+    if not any(flags):
+        return
+
+    print("Applying location filter in event invite picker...")
+
+    # Click the Locations button and capture its aria-controls ID so we can
+    # scope checkbox selection to the dropdown — not the people list.
+    result = driver.execute_script("""
+        const host = document.querySelector('#interop-outlet');
+        if (!host || !host.shadowRoot) return {ok: false, reason: 'no-shadow-root'};
+        const shadow = host.shadowRoot;
+
+        const locBtn =
+            shadow.querySelector('button[aria-label*="ocation"]') ||
+            Array.from(shadow.querySelectorAll('button'))
+                .find(b => /^locations?(\\s|$)/i.test((b.innerText || '').trim()));
+
+        if (!locBtn) return {ok: false, reason: 'no-locations-button'};
+
+        const ariaControls = locBtn.getAttribute('aria-controls');
+        locBtn.click();
+        return {ok: true, ariaControls: ariaControls};
+    """)
+
+    if not result or not result.get('ok'):
+        print(f"WARNING: Could not open Locations filter: {result}")
+        return
+
+    time.sleep(1.5)
+
+    # Click location checkboxes scoped to the dropdown container only.
+    checked = driver.execute_script("""
+        const host = document.querySelector('#interop-outlet');
+        if (!host || !host.shadowRoot) return 0;
+        const shadow = host.shadowRoot;
+
+        const ariaControls = arguments[1];
+        const dropdown = ariaControls
+            ? shadow.querySelector('[id="' + ariaControls + '"]')
+            : null;
+
+        if (!dropdown) {
+            console.warn('Location dropdown not found via aria-controls:', ariaControls);
+            return -1;
+        }
+
+        const checkboxes = Array.from(dropdown.querySelectorAll('input[type="checkbox"]'));
+        const flags = arguments[0];
+        let n = 0;
+        for (let i = 0; i < Math.min(flags.length, checkboxes.length); i++) {
+            if (flags[i]) { checkboxes[i].click(); n++; }
+        }
+        return n;
+    """, [bool(f) for f in flags], result.get('ariaControls'))
+
+    if checked == -1:
+        print("WARNING: Location dropdown container not found — filter not applied.")
+        return
+
+    time.sleep(0.5)
+
+    # Click Show results / Apply to confirm the selection.
+    driver.execute_script("""
+        const host = document.querySelector('#interop-outlet');
+        if (!host || !host.shadowRoot) return;
+        const shadow = host.shadowRoot;
+        const applyBtn = Array.from(shadow.querySelectorAll('button'))
+            .find(b => /show results|apply/i.test((b.innerText || '').trim()));
+        if (applyBtn) applyBtn.click();
+    """)
+
+    time.sleep(2)
+    print(f"Location filter applied ({checked} checkbox(es) clicked).")
+
+
+def scroll_event_modal(driver, max_rounds=200):
+    """Click 'Load more' until the event invite picker list is fully loaded."""
+    print("Scrolling to load all contacts in the invite picker...")
     for _ in range(max_rounds):
-
-        matching_count = driver.execute_script("""
-            const host = document.querySelector('#interop-outlet');
-            if (!host || !host.shadowRoot) return 0;
-
-            const shadow = host.shadowRoot;
-            const cards = shadow.querySelectorAll('.invitee-picker__result-item');
-
-            let count = 0;
-
-            const rawKeywords = arguments[0];
-
-            let keywords = [];
-
-            if (Array.isArray(rawKeywords)) {
-                keywords = rawKeywords.map(k => String(k).toLowerCase());
-            } else if (typeof rawKeywords === "string") {
-                keywords = rawKeywords.toLowerCase().split(",");
-            }
-
-            for (let card of cards) {
-
-                const checkbox = card.querySelector('input[type="checkbox"]');
-                const invitedLabel = card.innerText.includes("Invited");
-
-                if (!checkbox || checkbox.checked || invitedLabel) continue;
-
-                const text = card.innerText.toLowerCase();
-                if (!text) continue;
-
-                let match = false;
-
-                for (let kw of keywords) {
-                    if (text.includes(kw.trim())) {
-                        match = true;
-                        break;
-                    }
-                }
-
-                if (match) count++;
-
-                if (count >= arguments[1]) break;
-            }
-
-            return count;
-        """, search_keywords, needed_count)
-
-        if matching_count >= needed_count:
-            time.sleep(0.5)
-            return
-
         clicked = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
             if (!host || !host.shadowRoot) return false;
-
             const shadow = host.shadowRoot;
             const btn = shadow.querySelector('.scaffold-finite-scroll__load-button');
-
             if (!btn) return false;
-
             btn.click();
             return true;
         """)
-
         if not clicked:
-            return
-
+            break
         time.sleep(1.5)
-        time.sleep(0.5)
+    print("Done scrolling.")
 
 
 # ***************** LOGIC ***********************
@@ -255,7 +303,27 @@ while round < roundsToRepeat:
         driver.get(people_list_url)
         time.sleep(randint(3, 6))
 
-        utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
+        try:
+            page_text = driver.find_element(By.TAG_NAME, "body").text
+            if "no remaining invite credits" in page_text.lower():
+                print("No remaining invite credits. Stopping gracefully.")
+                break
+        except Exception:
+            pass
+
+        try:
+            utils.clickFilterByLocation(driver, verboseOn, filterByFirstLocation, f2, f3, f4, f5, f6)
+        except Exception as e:
+            try:
+                page_text = driver.find_element(By.TAG_NAME, "body").text
+                if "no remaining invite credits" in page_text.lower():
+                    print("No remaining invite credits. Stopping gracefully.")
+                    break
+            except Exception:
+                pass
+            print(f"ERROR: Location filter could not be applied: {e}")
+            driver.quit()
+            sys.exit(1)
         utils.loadContactsToInvite(driver, pagesToScan, verboseOn)
 
         all_checkboxes = driver.find_elements(By.XPATH, "//input[@type='checkbox']")
@@ -285,12 +353,22 @@ while round < roundsToRepeat:
             print("No people match the search criteria.")
             break
 
+        print(f"Selected {invitesSelected} people to invite.")
         if testMode:
             print("TEST — would click Invite for", invitesSelected, "people. Skipping.")
         else:
             print("------Inviting--------")
             invite = driver.find_element(By.CSS_SELECTOR, "button.artdeco-button--primary")
             invite.click()
+            time.sleep(4)
+            try:
+                page_text = driver.find_element(By.TAG_NAME, "body").text
+                if "no remaining invite credits" in page_text.lower():
+                    print("No remaining invite credits. Stopping gracefully.")
+                    totalConnectRequests += invitesSelected
+                    break
+            except Exception:
+                pass
 
         totalConnectRequests += invitesSelected
         time.sleep(4)
@@ -299,7 +377,9 @@ while round < roundsToRepeat:
 
         open_event_invite_dialog(driver, people_list_url)
 
-        scroll_event_modal(driver, search_keywords, invitesInOneRound)
+        apply_event_location_filter(driver, filterByFirstLocation, f2, f3, f4, f5, f6)
+
+        scroll_event_modal(driver)
 
         card_elements = driver.execute_script("""
             const host = document.querySelector('#interop-outlet');
@@ -436,3 +516,4 @@ if testMode:
 else:
     print("Total invites sent: " + str(totalConnectRequests))
 print("Script ends here")
+driver.quit()
