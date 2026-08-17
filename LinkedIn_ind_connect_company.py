@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import StaleElementReferenceException
 from webdriver_manager.chrome import ChromeDriverManager
 from random import randint
 import time
@@ -159,6 +160,173 @@ if os.path.exists(processedFile):
 print(f"Already-processed profiles: {len(processed_profiles)}", flush=True)
 print(f"Settings: pagesToScan={pagesToScan}, maxConnects={maxConnects}, TestMode={TestMode}", flush=True)
 
+def run_pymk_fallback(driver, maxConnects, totalConnectRequests, TestMode, processedFile, processed_profiles):
+    """Top up connection requests via LinkedIn's 'People You May Know' page.
+
+    Used when the keyword search runs dry (most often because the account has
+    hit LinkedIn's monthly commercial-search-limit for the People search, which
+    starves the search results down to near-zero regardless of retries). PYMK
+    is a separate LinkedIn surface not subject to that limit, and unlike the
+    search results page it typically sends the invite immediately on click
+    rather than opening a 'Send without a note' confirmation modal — so both
+    paths are handled below.
+    """
+    print("\n=== Falling back to People You May Know (search results exhausted) ===", flush=True)
+    driver.get("https://www.linkedin.com/mynetwork/grow/")
+    time.sleep(5)
+
+    stall_rounds = 0
+    while totalConnectRequests < maxConnects and stall_rounds < 4:
+        connect_buttons = driver.find_elements(
+            By.XPATH,
+            "//button[contains(@aria-label,'Connect') or contains(@aria-label,'connect')]"
+        )
+        if not connect_buttons:
+            print("No PYMK connect buttons found on page.", flush=True)
+            break
+
+        progressed = False
+        for btn in connect_buttons:
+            if totalConnectRequests >= maxConnects:
+                break
+
+            try:
+                profile_url = driver.execute_script("""
+                    let el = arguments[0], hops = 0;
+                    while (el && el !== document.body && hops < 8) {
+                        const a = el.querySelector ? el.querySelector('a[href*="/in/"]') : null;
+                        if (a) return a.href;
+                        el = el.parentElement;
+                        hops++;
+                    }
+                    return null;
+                """, btn)
+            except Exception:
+                continue
+
+            if not profile_url:
+                continue
+            profile_url = profile_url.split('?')[0]
+
+            if profile_url in processed_profiles:
+                continue
+
+            try:
+                profile_name = btn.get_attribute("aria-label") or profile_url
+            except Exception:
+                profile_name = profile_url
+
+            print(f"Clicking Connect (PYMK): {profile_name}", flush=True)
+
+            try:
+                driver.execute_script("""
+                    const el = arguments[0];
+                    el.scrollIntoView({block:'center', inline:'center'});
+                    el.focus();
+                    ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+                        let ev;
+                        if (type.startsWith('pointer')) {
+                            ev = new PointerEvent(type, {bubbles:true, cancelable:true});
+                        } else {
+                            ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+                        }
+                        el.dispatchEvent(ev);
+                    });
+                    el.click();
+                """, btn)
+            except Exception as e:
+                print(f"PYMK click failed for {profile_name}: {type(e).__name__}: {e}", flush=True)
+                continue
+
+            time.sleep(randint(2, 4))
+
+            if TestMode:
+                print("TEST MODE: PYMK connect clicked, confirmation skipped", flush=True)
+                with open(processedFile, "a", encoding="utf-8") as f:
+                    f.write(profile_url + "\n")
+                    f.flush()
+                processed_profiles.add(profile_url)
+                progressed = True
+                continue
+
+            # Confirm the invite actually went out: either a confirmation modal
+            # appears (older/'Add a note' style flow), or the button itself
+            # disappears / flips to a pending state (the common PYMK behavior).
+            # Note: if the card was already removed from the DOM by the time we
+            # get here, Selenium raises StaleElementReferenceException just from
+            # passing `btn` into execute_script (before any JS runs) — that in
+            # itself is the strongest signal the invite went through.
+            try:
+                result = driver.execute_script(r"""
+                const btn = arguments[0];
+                const sleep = ms => new Promise(r => setTimeout(r, ms));
+                async function run() {
+                    for (let i = 0; i < 20; i++) {
+                        const modalBtn = document.querySelector("button[aria-label='Send without a note']")
+                            || document.querySelector("button[aria-label='Send now']")
+                            || document.querySelector("button[aria-label='Send invitation']");
+                        if (modalBtn) {
+                            modalBtn.scrollIntoView({block:'center'});
+                            modalBtn.focus();
+                            ['pointerdown','pointerup','mousedown','mouseup','click'].forEach(type => {
+                                let ev;
+                                if (type.startsWith('pointer')) {
+                                    ev = new PointerEvent(type, {bubbles:true, cancelable:true});
+                                } else {
+                                    ev = new MouseEvent(type, {bubbles:true, cancelable:true, view:window});
+                                }
+                                modalBtn.dispatchEvent(ev);
+                            });
+                            modalBtn.click();
+                            return 'modal_sent';
+                        }
+                        if (!document.body.contains(btn)) return 'removed';
+                        const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+                        if (label.includes('pending')) return 'pending_label';
+                        await sleep(250);
+                    }
+                    return 'timeout';
+                }
+                return run();
+            """, btn)
+            except StaleElementReferenceException:
+                result = 'removed'
+
+            if result == 'timeout':
+                print(f"Could not confirm PYMK invite was sent for: {profile_name} (skipping, not marked processed)", flush=True)
+                continue
+
+            totalConnectRequests += 1
+            progressed = True
+            print(f"Connection request sent via PYMK ({totalConnectRequests}/{maxConnects}): {profile_name} [{result}]", flush=True)
+
+            with open(processedFile, "a", encoding="utf-8") as f:
+                f.write(profile_url + "\n")
+                f.flush()
+            processed_profiles.add(profile_url)
+
+            time.sleep(randint(20, 40))
+
+        if totalConnectRequests >= maxConnects:
+            break
+
+        stall_rounds = 0 if progressed else stall_rounds + 1
+
+        # Try to load more suggestions before giving up.
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+        try:
+            for mb in driver.find_elements(By.XPATH, "//button[contains(.,'Show more')]"):
+                if mb.is_displayed():
+                    driver.execute_script("arguments[0].click();", mb)
+                    time.sleep(3)
+                    break
+        except Exception:
+            pass
+
+    return totalConnectRequests
+
+
 pageNr = startingPage
 consecutive_empty = 0
 pagesVisited = 0
@@ -180,10 +348,18 @@ while pageNr < pagesToScan+startingPage:
 
         if len(connect_buttons) == 0:
             print("Page title:", driver.title, flush=True)
+            try:
+                if "monthly limit for profile searches" in driver.find_element(By.TAG_NAME, "body").text.lower():
+                    print("LinkedIn's monthly search limit has been reached for this account. "
+                          "Search-based results will stay empty until it resets. "
+                          "Stopping the search phase early.", flush=True)
+                    consecutive_empty = 4  # force exit of the search phase below
+            except Exception:
+                pass
             consecutive_empty += 1
             if consecutive_empty > 3:
-                print("Found Connect buttons: 0 more than 3 times in a row. Exiting.", flush=True)
-                sys.exit(0)
+                print("Found Connect buttons: 0 more than 3 times in a row. Ending search phase.", flush=True)
+                break
             pageNr += 1
             continue
         consecutive_empty = 0
@@ -350,7 +526,18 @@ while pageNr < pagesToScan+startingPage:
 
     pageNr += 1
 
+searchPhaseRequests = totalConnectRequests
+if totalConnectRequests < maxConnects:
+    try:
+        totalConnectRequests = run_pymk_fallback(
+            driver, maxConnects, totalConnectRequests, TestMode, processedFile, processed_profiles
+        )
+    except Exception as e:
+        print(f"PYMK fallback failed: {type(e).__name__}: {e}", flush=True)
+
 print(f"\n=== Run complete ===", flush=True)
+print(f"From keyword search : {searchPhaseRequests}", flush=True)
+print(f"From People You May Know : {totalConnectRequests - searchPhaseRequests}", flush=True)
 print(f"Pages visited : {pagesVisited}", flush=True)
 print(f"Requests sent : {totalConnectRequests}{' (TEST MODE)' if TestMode else ''}", flush=True)
 print(f"Crashes       : {crash}", flush=True)
