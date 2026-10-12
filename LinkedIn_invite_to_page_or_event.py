@@ -84,8 +84,12 @@ else:
 
 
 # EVENT FLOW
+def is_event_url(url):
+    return "/events/" in url or "/event/manage/" in url
+
+
 def open_event_invite_dialog(driver, people_list_url):
-    if "/events/" not in people_list_url and "/event/manage/" not in people_list_url:
+    if not is_event_url(people_list_url):
         return
 
     print("Opening event invite picker...")
@@ -292,13 +296,15 @@ already_selected = set()
 
 round = 0
 
-if "/events/" in people_list_url:
+is_event = is_event_url(people_list_url)
+
+if is_event:
     driver.get(people_list_url)
     time.sleep(randint(3, 7))
 
 while round < roundsToRepeat:
 
-    if "/events/" not in people_list_url:
+    if not is_event:
 
         driver.get(people_list_url)
         time.sleep(randint(3, 6))
